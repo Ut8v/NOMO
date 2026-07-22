@@ -5,3 +5,11 @@ export type {
   KeyValidationResult,
   ApiError,
 } from "./setup.js";
+
+export type {
+  ChatRole,
+  ChatMessage,
+  ChatRequest,
+  ChatErrorCode,
+  ChatStreamEvent,
+} from "./chat.js";
