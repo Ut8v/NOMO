@@ -34,10 +34,11 @@ export async function validateAnthropicKey(key: string): Promise<KeyValidationRe
  */
 export async function validatePolygonKey(key: string): Promise<KeyValidationResult> {
   try {
-    const res = await fetchWithTimeout(
-      `https://api.polygon.io/v1/marketstatus/now?apiKey=${encodeURIComponent(key)}`,
-      {},
-    );
+    // The key goes in a header, not the query string, so it cannot end up
+    // in URL based logs.
+    const res = await fetchWithTimeout("https://api.polygon.io/v1/marketstatus/now", {
+      headers: { Authorization: `Bearer ${key}` },
+    });
     if (res.ok) return { valid: true };
     if (res.status === 401 || res.status === 403) {
       return { valid: false, error: "Polygon rejected this API key." };
