@@ -2,11 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import type { SetupStatus } from "@nomo/shared";
 import { fetchSetupStatus } from "./api";
 import SetupScreen from "./components/SetupScreen";
-import ReadyState from "./components/ReadyState";
+import Chat from "./components/Chat";
 
 export default function App() {
   const [status, setStatus] = useState<SetupStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showSetup, setShowSetup] = useState(false);
 
   const loadStatus = useCallback(async () => {
     try {
@@ -42,9 +43,16 @@ export default function App() {
     );
   }
 
-  return status.configured ? (
-    <ReadyState />
-  ) : (
-    <SetupScreen onConfigured={() => void loadStatus()} />
-  );
+  if (!status.configured || showSetup) {
+    return (
+      <SetupScreen
+        onConfigured={() => {
+          setShowSetup(false);
+          void loadStatus();
+        }}
+      />
+    );
+  }
+
+  return <Chat onOpenSettings={() => setShowSetup(true)} />;
 }
