@@ -1,7 +1,8 @@
-import type { ChatRequest, ChatStreamEvent } from "@nomo/shared";
+import type { ChartSpec, ChatRequest, ChatStreamEvent } from "@nomo/shared";
 
 export interface ChatStreamHandlers {
   onText: (text: string) => void;
+  onChart: (spec: ChartSpec) => void;
   onError: (code: string, message: string) => void;
   onDone: () => void;
 }
@@ -45,6 +46,8 @@ export async function streamChat(
     if (finished) return;
     if (event.type === "text") {
       handlers.onText(event.text);
+    } else if (event.type === "chart") {
+      handlers.onChart(event.spec);
     } else if (event.type === "done") {
       finished = true;
       handlers.onDone();
