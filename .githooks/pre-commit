@@ -8,7 +8,7 @@ blocked=$(printf '%s\n' "$staged" | grep -E '(^|/)\.env(\..*)?$|\.(db|sqlite|sql
 
 if [ -n "$blocked" ]; then
   echo "Commit blocked. The following staged files must never be committed:" >&2
-  printf '  %s\n' $blocked >&2
+  printf '%s\n' "$blocked" | sed 's/^/  /' >&2
   echo "Secrets belong in .env or the local database, both gitignored." >&2
   exit 1
 fi
