@@ -10,7 +10,8 @@ interface Props {
 
 export default function ChatInput({ value, onChange, onSend, onStop, streaming }: Props) {
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key === "Enter" && !event.shiftKey) {
+    // Enter during IME composition commits the candidate, not the message.
+    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault();
       onSend();
     }
