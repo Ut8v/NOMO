@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.112.5",
     "@nomo/shared": "*",
     "better-sqlite3": "^11.8.1",
     "dotenv": "^16.4.7",
