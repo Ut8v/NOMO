@@ -20,6 +20,7 @@ export const config = {
   port: Number(process.env.PORT) || 3001,
   host,
   anthropicModel: process.env.ANTHROPIC_MODEL || "claude-sonnet-5",
+  polygonBaseUrl: process.env.POLYGON_BASE_URL || "https://api.polygon.io",
   dataDir: path.join(serverRoot, "data"),
   dbPath: path.join(serverRoot, "data", "app.db"),
 };
