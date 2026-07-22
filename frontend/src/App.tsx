@@ -43,16 +43,24 @@ export default function App() {
     );
   }
 
-  if (!status.configured || showSetup) {
-    return (
-      <SetupScreen
-        onConfigured={() => {
-          setShowSetup(false);
-          void loadStatus();
-        }}
-      />
-    );
-  }
-
-  return <Chat onOpenSettings={() => setShowSetup(true)} />;
+  // Chat stays mounted while settings is open so the conversation held in
+  // component state survives a key update.
+  return (
+    <>
+      {(!status.configured || showSetup) && (
+        <SetupScreen
+          onConfigured={() => {
+            setShowSetup(false);
+            void loadStatus();
+          }}
+          onCancel={status.configured ? () => setShowSetup(false) : undefined}
+        />
+      )}
+      {status.configured && (
+        <div className={showSetup ? "hidden" : undefined}>
+          <Chat onOpenSettings={() => setShowSetup(true)} />
+        </div>
+      )}
+    </>
+  );
 }

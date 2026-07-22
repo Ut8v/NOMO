@@ -4,9 +4,11 @@ import { saveKeys } from "../api";
 
 interface Props {
   onConfigured: () => void;
+  /** Present when the app is already configured, so leaving is allowed. */
+  onCancel?: () => void;
 }
 
-export default function SetupScreen({ onConfigured }: Props) {
+export default function SetupScreen({ onConfigured, onCancel }: Props) {
   const [anthropicKey, setAnthropicKey] = useState("");
   const [polygonKey, setPolygonKey] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -51,10 +53,10 @@ export default function SetupScreen({ onConfigured }: Props) {
   return (
     <div className="centered">
       <form className="panel setup-form" onSubmit={handleSubmit}>
-        <h1>Welcome to NOMO</h1>
+        <h1>{onCancel ? "Update API keys" : "Welcome to NOMO"}</h1>
         <p className="muted">
-          First-run setup. Both keys are validated with a test call, then stored
-          in a local database on this machine. They are never sent anywhere else.
+          Both keys are validated with a test call, then stored in a local
+          database on this machine. They are never sent anywhere else.
         </p>
 
         <label htmlFor="anthropic-key">Anthropic API key</label>
@@ -86,6 +88,11 @@ export default function SetupScreen({ onConfigured }: Props) {
         <button type="submit" disabled={submitting}>
           {submitting ? "Validating..." : "Validate and save"}
         </button>
+        {onCancel && (
+          <button type="button" className="secondary" onClick={onCancel} disabled={submitting}>
+            Back to chat
+          </button>
+        )}
       </form>
     </div>
   );

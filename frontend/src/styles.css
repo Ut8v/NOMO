@@ -84,6 +84,14 @@ button:disabled {
   cursor: default;
 }
 
+button.secondary {
+  background: #2e3442;
+}
+
+.hidden {
+  display: none;
+}
+
 .chat {
   display: flex;
   flex-direction: column;
@@ -219,6 +227,7 @@ button:disabled {
   padding: 0.65rem 1.1rem;
 }
 
-.chat-input button.secondary {
-  background: #2e3442;
+.chat-header-actions {
+  display: flex;
+  gap: 0.5rem;
 }
