@@ -44,6 +44,27 @@ function isoDate(msEpoch: number): string {
   return new Date(msEpoch).toISOString().slice(0, 10);
 }
 
+// US sessions including extended hours (4:00 to 20:00 ET) cross UTC midnight
+// during standard time, so session grouping must use exchange local dates.
+const EASTERN_DATE = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/New_York",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+function easternDate(unixSeconds: number): string {
+  return EASTERN_DATE.format(new Date(unixSeconds * 1000));
+}
+
+/** Keeps only bars from the same exchange local session as the latest bar. */
+export function filterLatestSession(bars: OhlcvBar[]): OhlcvBar[] {
+  const lastBar = bars[bars.length - 1];
+  if (!lastBar) return bars;
+  const session = easternDate(lastBar.time);
+  return bars.filter((bar) => easternDate(bar.time) === session);
+}
+
 async function fetchBars(ticker: string, timeframe: ChartTimeframe): Promise<OhlcvBar[]> {
   const plan = TIMEFRAMES[timeframe];
   const now = Date.now();
@@ -53,9 +74,7 @@ async function fetchBars(ticker: string, timeframe: ChartTimeframe): Promise<Ohl
   // 1D uses a few calendar days of lookback to survive weekends and
   // holidays; keep only the most recent session's bars.
   if (timeframe === "1D") {
-    const lastBar = bars[bars.length - 1]!;
-    const sessionStart = new Date(lastBar.time * 1000).toISOString().slice(0, 10);
-    return bars.filter((bar) => new Date(bar.time * 1000).toISOString().slice(0, 10) === sessionStart);
+    return filterLatestSession(bars);
   }
   return bars;
 }
