@@ -1,0 +1,85 @@
+:root {
+  color-scheme: dark;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #0f1115;
+  color: #e6e8eb;
+}
+
+.centered {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.panel {
+  width: 100%;
+  max-width: 26rem;
+  background: #171a21;
+  border: 1px solid #262b36;
+  border-radius: 12px;
+  padding: 2rem;
+}
+
+.panel h1 {
+  margin: 0 0 0.75rem;
+  font-size: 1.4rem;
+}
+
+.muted {
+  color: #9aa3b2;
+}
+
+.error-text {
+  color: #f2726f;
+  margin: 0.25rem 0 0;
+  font-size: 0.9rem;
+}
+
+.setup-form label {
+  display: block;
+  margin: 1.25rem 0 0.4rem;
+  font-size: 0.9rem;
+  color: #c3c9d4;
+}
+
+.setup-form input {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid #2e3442;
+  background: #0f1115;
+  color: #e6e8eb;
+  font-size: 0.95rem;
+}
+
+.setup-form input:focus {
+  outline: none;
+  border-color: #4f7cff;
+}
+
+button {
+  margin-top: 1.5rem;
+  width: 100%;
+  padding: 0.65rem;
+  border: none;
+  border-radius: 8px;
+  background: #4f7cff;
+  color: #fff;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

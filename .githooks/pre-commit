@@ -1,0 +1,16 @@
+#!/bin/sh
+# Blocks commits that stage environment files or local database files.
+# Installed via "git config core.hooksPath .githooks" (runs on npm install).
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+
+blocked=$(printf '%s\n' "$staged" | grep -E '(^|/)\.env(\..*)?$|\.(db|sqlite|sqlite3|db-journal|db-wal|db-shm)$' | grep -v -E '(^|/)\.env\.example$')
+
+if [ -n "$blocked" ]; then
+  echo "Commit blocked. The following staged files must never be committed:" >&2
+  printf '%s\n' "$blocked" | sed 's/^/  /' >&2
+  echo "Secrets belong in .env or the local database, both gitignored." >&2
+  exit 1
+fi
+
+exit 0

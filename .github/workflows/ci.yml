@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  secret-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fail if env or database files are tracked
+        run: |
+          tracked=$(git ls-files | grep -E '(^|/)\.env(\..*)?$|\.(db|sqlite|sqlite3|db-journal|db-wal|db-shm)$' | grep -v -E '(^|/)\.env\.example$' || true)
+          if [ -n "$tracked" ]; then
+            echo "These files must never be committed:"
+            printf '%s\n' "$tracked" | sed 's/^/  /'
+            exit 1
+          fi
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm run typecheck
