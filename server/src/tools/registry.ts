@@ -1,4 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import type { ChartSpec } from "@nomo/shared";
 
 /**
  * Every tool the model can see is registered here with an explicit tier.
@@ -8,12 +9,19 @@ import type Anthropic from "@anthropic-ai/sdk";
  */
 export type ToolTier = "market_data" | "portfolio_read" | "execution";
 
+export interface ToolExecutionResult {
+  /** JSON-serialized into the tool_result the model sees. Keep it compact. */
+  forModel: unknown;
+  /** Full chart spec streamed to the frontend, never sent to the model. */
+  chart?: ChartSpec;
+}
+
 export interface RegisteredTool {
   name: string;
   tier: ToolTier;
   description: string;
   inputSchema: Anthropic.Tool.InputSchema;
-  execute: (input: unknown) => Promise<unknown>;
+  execute: (input: unknown) => Promise<ToolExecutionResult>;
 }
 
 const tools = new Map<string, RegisteredTool>();
