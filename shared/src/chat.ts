@@ -13,6 +13,12 @@ export interface ChatRequest {
   messages: ChatMessage[];
 }
 
+/**
+ * Upper bound on messages per request, enforced by the server and used by
+ * the frontend to window the history it sends.
+ */
+export const MAX_CHAT_MESSAGES = 200;
+
 export type ChatErrorCode =
   | "missing_api_key"
   | "invalid_api_key"

@@ -13,3 +13,5 @@ export type {
   ChatErrorCode,
   ChatStreamEvent,
 } from "./chat.js";
+
+export { MAX_CHAT_MESSAGES } from "./chat.js";

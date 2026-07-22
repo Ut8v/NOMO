@@ -1,18 +1,21 @@
 import { Router } from "express";
 import type { ChatMessage, ChatRequest, ChatStreamEvent } from "@nomo/shared";
+import { MAX_CHAT_MESSAGES } from "@nomo/shared";
 import { hasCredential } from "../db/credentials.js";
-import { ChatError, streamChatTurn } from "../services/chat.js";
+import { ChatError, MISSING_API_KEY, streamChatTurn } from "../services/chat.js";
 
 export const chatRouter = Router();
 
-const MAX_MESSAGES = 200;
-
 function parseMessages(body: unknown): ChatMessage[] | null {
   const messages = (body as Partial<ChatRequest> | undefined)?.messages;
-  if (!Array.isArray(messages) || messages.length === 0 || messages.length > MAX_MESSAGES) {
+  if (!Array.isArray(messages) || messages.length === 0 || messages.length > MAX_CHAT_MESSAGES) {
     return null;
   }
-  for (const message of messages) {
+  for (const entry of messages) {
+    if (typeof entry !== "object" || entry === null) {
+      return null;
+    }
+    const message = entry as Partial<ChatMessage>;
     if (
       (message.role !== "user" && message.role !== "assistant") ||
       typeof message.content !== "string" ||
@@ -31,7 +34,7 @@ chatRouter.post("/", async (req, res) => {
     return;
   }
   if (!hasCredential("anthropic")) {
-    res.status(401).json({ error: "No Anthropic API key is stored. Run setup first.", code: "missing_api_key" });
+    res.status(401).json({ error: MISSING_API_KEY.message, code: MISSING_API_KEY.code });
     return;
   }
 
