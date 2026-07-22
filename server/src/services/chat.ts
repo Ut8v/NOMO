@@ -14,11 +14,22 @@ export class ChatError extends Error {
   }
 }
 
-const SYSTEM_PROMPT = [
-  "You are the assistant in NOMO, a local, single user trading chat app.",
-  "Be direct and concise. Do not fabricate market data or account state;",
-  "when you cannot know something, say so. Tools arrive in a later phase.",
-].join(" ");
+/** Single source for the missing key error so route and service cannot drift. */
+export const MISSING_API_KEY = {
+  code: "missing_api_key",
+  message: "No Anthropic API key is stored. Run setup first.",
+} as const;
+
+function buildSystemPrompt(toolCount: number): string {
+  const base = [
+    "You are the assistant in NOMO, a local, single user trading chat app.",
+    "Be direct and concise. Do not fabricate market data or account state;",
+    "when you cannot know something, say so.",
+  ].join(" ");
+  return toolCount > 0
+    ? `${base} Use the available tools when they help answer the question.`
+    : `${base} No tools are available yet; say so if asked to fetch live data.`;
+}
 
 const MAX_TOKENS = 4096;
 
@@ -35,6 +46,18 @@ async function executeToolUse(
       type: "tool_result",
       tool_use_id: block.id,
       content: `Unknown tool: ${block.name}`,
+      is_error: true,
+    };
+  }
+  // Hard rule from CLAUDE.md: execution tier tools never run directly. The
+  // confirmation gate (Phase 5) is the only path allowed to invoke them, so
+  // this dispatcher refuses them unconditionally.
+  if (tool.tier === "execution") {
+    return {
+      type: "tool_result",
+      tool_use_id: block.id,
+      content:
+        "Execution tools require explicit user confirmation and cannot run from chat. The confirmation flow is not available yet.",
       is_error: true,
     };
   }
@@ -89,11 +112,12 @@ export async function streamChatTurn(
 ): Promise<void> {
   const apiKey = getCredential("anthropic");
   if (!apiKey) {
-    throw new ChatError("missing_api_key", "No Anthropic API key is stored. Run setup first.");
+    throw new ChatError(MISSING_API_KEY.code, MISSING_API_KEY.message);
   }
 
   const client = new Anthropic({ apiKey });
   const tools = getToolSchemas();
+  const systemPrompt = buildSystemPrompt(tools.length);
   const conversation: Anthropic.MessageParam[] = messages.map((m) => ({
     role: m.role,
     content: m.content,
@@ -106,7 +130,7 @@ export async function streamChatTurn(
         {
           model: config.anthropicModel,
           max_tokens: MAX_TOKENS,
-          system: SYSTEM_PROMPT,
+          system: systemPrompt,
           messages: conversation,
           ...(tools.length > 0 ? { tools } : {}),
         },
