@@ -6,8 +6,9 @@ github.md
 # Dependencies
 node_modules/
 
-# Build output
+# Build output and caches
 dist/
+.vite/
 *.tsbuildinfo
 
 # Environment files (secrets and instance config)

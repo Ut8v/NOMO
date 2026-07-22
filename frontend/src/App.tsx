@@ -2,11 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import type { SetupStatus } from "@nomo/shared";
 import { fetchSetupStatus } from "./api";
 import SetupScreen from "./components/SetupScreen";
-import ReadyState from "./components/ReadyState";
+import Chat from "./components/Chat";
 
 export default function App() {
   const [status, setStatus] = useState<SetupStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showSetup, setShowSetup] = useState(false);
 
   const loadStatus = useCallback(async () => {
     try {
@@ -42,9 +43,24 @@ export default function App() {
     );
   }
 
-  return status.configured ? (
-    <ReadyState />
-  ) : (
-    <SetupScreen onConfigured={() => void loadStatus()} />
+  // Chat stays mounted while settings is open so the conversation held in
+  // component state survives a key update.
+  return (
+    <>
+      {(!status.configured || showSetup) && (
+        <SetupScreen
+          onConfigured={() => {
+            setShowSetup(false);
+            void loadStatus();
+          }}
+          onCancel={status.configured ? () => setShowSetup(false) : undefined}
+        />
+      )}
+      {status.configured && (
+        <div className={showSetup ? "hidden" : undefined}>
+          <Chat onOpenSettings={() => setShowSetup(true)} />
+        </div>
+      )}
+    </>
   );
 }
