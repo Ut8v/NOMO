@@ -40,6 +40,9 @@ const quoteCache = new TtlCache<PreviousClose>();
 const INTRADAY_TTL_MS = 5 * 60 * 1000;
 const DAILY_TTL_MS = 60 * 60 * 1000;
 const QUOTE_TTL_MS = 5 * 60 * 1000;
+// Empty results are cached too, so a bad ticker cannot burn through the
+// free tier request budget on retries.
+const NOT_FOUND_TTL_MS = 5 * 60 * 1000;
 
 async function polygonGet(path: string): Promise<unknown> {
   const apiKey = getCredential("polygon");
@@ -69,7 +72,11 @@ async function polygonGet(path: string): Promise<unknown> {
   if (!res.ok) {
     throw new PolygonError("upstream_error", `Polygon API returned status ${res.status}.`);
   }
-  return res.json();
+  try {
+    return await res.json();
+  } catch {
+    throw new PolygonError("upstream_error", "Polygon returned an unreadable response.");
+  }
 }
 
 export async function getAggregates(
@@ -81,7 +88,12 @@ export async function getAggregates(
 ): Promise<OhlcvBar[]> {
   const cacheKey = `${ticker}:${multiplier}:${timespan}:${from}:${to}`;
   const cached = barsCache.get(cacheKey);
-  if (cached) return cached;
+  if (cached) {
+    if (cached.length === 0) {
+      throw new PolygonError("not_found", `Polygon returned no bars for ${ticker} in that range.`);
+    }
+    return cached;
+  }
 
   const data = (await polygonGet(
     `/v2/aggs/ticker/${encodeURIComponent(ticker)}/range/${multiplier}/${timespan}/${from}/${to}?adjusted=true&sort=asc&limit=50000`,
@@ -97,6 +109,7 @@ export async function getAggregates(
   }));
 
   if (bars.length === 0) {
+    barsCache.set(cacheKey, [], NOT_FOUND_TTL_MS);
     throw new PolygonError("not_found", `Polygon returned no bars for ${ticker} in that range.`);
   }
 
