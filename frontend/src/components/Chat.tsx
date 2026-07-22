@@ -1,7 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatMessage } from "@nomo/shared";
+import { MAX_CHAT_MESSAGES } from "@nomo/shared";
 import { streamChat } from "../chatStream";
 import ChatInput from "./ChatInput";
+
+// The UI keeps the full transcript, but requests send a window the server
+// accepts, trimmed so the window still opens on a user turn.
+function requestWindow(history: ChatMessage[]): ChatMessage[] {
+  let window = history.slice(-MAX_CHAT_MESSAGES);
+  const firstUser = window.findIndex((message) => message.role === "user");
+  if (firstUser > 0) {
+    window = window.slice(firstUser);
+  }
+  return window;
+}
 
 interface Props {
   onOpenSettings: () => void;
@@ -54,7 +66,7 @@ export default function Chat({ onOpenSettings }: Props) {
       abortRef.current = abort;
 
       void streamChat(
-        { messages: history },
+        { messages: requestWindow(history) },
         {
           onText: appendToReply,
           onDone: () => {
@@ -79,15 +91,28 @@ export default function Chat({ onOpenSettings }: Props) {
     setStreaming(false);
   }, []);
 
+  const newChat = useCallback(() => {
+    abortRef.current?.abort();
+    setMessages([]);
+    setFault(null);
+    setDraft("");
+    setStreaming(false);
+  }, []);
+
   const keyFault = fault?.code === "missing_api_key" || fault?.code === "invalid_api_key";
 
   return (
     <div className="chat">
       <header className="chat-header">
         <span className="chat-title">NOMO</span>
-        <button className="link-button" onClick={onOpenSettings}>
-          Settings
-        </button>
+        <div className="chat-header-actions">
+          <button className="link-button" onClick={newChat} disabled={messages.length === 0}>
+            New chat
+          </button>
+          <button className="link-button" onClick={onOpenSettings}>
+            Settings
+          </button>
+        </div>
       </header>
 
       <div className="chat-messages" ref={scrollRef}>
