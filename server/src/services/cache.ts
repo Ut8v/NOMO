@@ -24,9 +24,24 @@ export class TtlCache<T> {
 
   set(key: string, value: T, ttlMs: number): void {
     if (this.entries.size >= this.maxEntries && !this.entries.has(key)) {
-      const oldest = this.entries.keys().next().value;
-      if (oldest !== undefined) this.entries.delete(oldest);
+      // Reclaim expired entries before sacrificing a live one; short and
+      // long TTL entries share this cache, so insertion order alone would
+      // evict valid daily bars while stale intraday bars sit around.
+      this.sweepExpired();
+      if (this.entries.size >= this.maxEntries) {
+        const oldest = this.entries.keys().next().value;
+        if (oldest !== undefined) this.entries.delete(oldest);
+      }
     }
     this.entries.set(key, { value, expiresAt: Date.now() + ttlMs });
+  }
+
+  private sweepExpired(): void {
+    const now = Date.now();
+    for (const [key, entry] of this.entries) {
+      if (now >= entry.expiresAt) {
+        this.entries.delete(key);
+      }
+    }
   }
 }
