@@ -65,9 +65,16 @@ export async function streamChat(
         const frame = buffer.slice(0, separator);
         buffer = buffer.slice(separator + 2);
         for (const line of frame.split("\n")) {
-          if (line.startsWith("data: ")) {
-            dispatch(JSON.parse(line.slice(6)) as ChatStreamEvent);
+          if (!line.startsWith("data: ")) continue;
+          let event: ChatStreamEvent;
+          try {
+            event = JSON.parse(line.slice(6)) as ChatStreamEvent;
+          } catch {
+            // One truncated frame must not mask real events still buffered,
+            // like a final error event carrying an actionable code.
+            continue;
           }
+          dispatch(event);
         }
       }
     }
