@@ -25,6 +25,7 @@ export const config = {
   // places that call fetch directly.
   anthropicBaseUrl: process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com",
   polygonBaseUrl: process.env.POLYGON_BASE_URL || "https://api.polygon.io",
+  robinhoodMcpUrl: process.env.ROBINHOOD_MCP_URL || "https://agent.robinhood.com/mcp/trading",
   dataDir: path.join(serverRoot, "data"),
   dbPath: path.join(serverRoot, "data", "app.db"),
 };
