@@ -29,6 +29,7 @@ export default function SettingsScreen({ onBack }: Props) {
   const [robinhood, setRobinhood] = useState<RobinhoodStatus | null>(null);
   const [linkBusy, setLinkBusy] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
+  const [fallbackUrl, setFallbackUrl] = useState<string | null>(null);
   const pollRef = useRef<number | null>(null);
 
   const [tiers, setTiers] = useState<TierSetting[]>([]);
@@ -78,31 +79,46 @@ export default function SettingsScreen({ onBack }: Props) {
   async function handleLink() {
     setLinkBusy(true);
     setLinkError(null);
+    setFallbackUrl(null);
+    // Opened synchronously inside the click gesture so popup blockers allow
+    // it; the authorization URL is assigned once the server responds.
+    const popup = window.open("", "_blank");
     try {
       const { authorizeUrl, linked } = await startRobinhoodLink();
       if (linked) {
+        popup?.close();
         await refresh();
+        setLinkBusy(false);
         return;
       }
-      window.open(authorizeUrl, "_blank", "noopener");
-      // Poll until the callback lands or the user gives up.
+      if (popup) {
+        popup.location.href = authorizeUrl;
+      } else {
+        setFallbackUrl(authorizeUrl);
+      }
+      // Poll until tools are registered, not merely until tokens exist.
       let attempts = 0;
       pollRef.current = window.setInterval(async () => {
         attempts += 1;
         const status = await fetchRobinhoodStatus().catch(() => null);
-        if (status?.linked || attempts > 60) {
+        if (status?.active || attempts > 60) {
           if (pollRef.current !== null) window.clearInterval(pollRef.current);
           pollRef.current = null;
           setLinkBusy(false);
-          if (status) setRobinhood(status);
-          void refresh();
+          setFallbackUrl(null);
+          if (status?.active) {
+            setRobinhood(status);
+            void refresh();
+          } else {
+            setLinkError("Timed out waiting for Robinhood. Finish authorizing in the opened tab, then link again.");
+          }
         }
       }, 2000);
-      return;
     } catch (err) {
+      popup?.close();
       setLinkError(err instanceof Error ? err.message : "Link failed to start.");
+      setLinkBusy(false);
     }
-    setLinkBusy(false);
   }
 
   async function handleUnlink() {
@@ -134,7 +150,7 @@ export default function SettingsScreen({ onBack }: Props) {
     <div className="settings">
       <header className="chat-header">
         <span className="chat-title">Settings</span>
-        <button className="link-button" onClick={onBack}>
+        <button className="link-button" onClick={onBack} disabled={keysBusy || linkBusy}>
           Back to chat
         </button>
       </header>
@@ -144,6 +160,12 @@ export default function SettingsScreen({ onBack }: Props) {
         <p className="muted">
           Replace the stored Anthropic and Polygon keys. Both are validated before anything is saved.
         </p>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void handleSaveKeys();
+          }}
+        >
         <label htmlFor="settings-anthropic">Anthropic API key</label>
         <input
           id="settings-anthropic"
@@ -166,21 +188,30 @@ export default function SettingsScreen({ onBack }: Props) {
         />
         {keysError && <p className="error-text">{keysError}</p>}
         {keysMessage && <p className="success-text">{keysMessage}</p>}
-        <button
-          onClick={() => void handleSaveKeys()}
-          disabled={keysBusy || !anthropicKey.trim() || !polygonKey.trim()}
-        >
+        <button type="submit" disabled={keysBusy || !anthropicKey.trim() || !polygonKey.trim()}>
           {keysBusy ? "Validating..." : "Validate and save"}
         </button>
+        </form>
       </section>
 
       <section className="settings-section">
         <h2>Robinhood</h2>
-        {robinhood?.linked ? (
+        {robinhood && (robinhood.linked || robinhood.active) ? (
           <>
-            <p className="success-text">
-              Linked. {robinhood.tools.length} read only tools available: {robinhood.tools.join(", ")}
-            </p>
+            {robinhood.active ? (
+              <p className="success-text">
+                Connected. {robinhood.tools.length} read only tools available: {robinhood.tools.join(", ")}
+              </p>
+            ) : (
+              <p className="error-text">
+                Linked, but the connection to Robinhood failed, so no tools are available. Reconnect or unlink.
+              </p>
+            )}
+            {!robinhood.active && (
+              <button onClick={() => void handleLink()} disabled={linkBusy}>
+                {linkBusy ? "Waiting for Robinhood..." : "Reconnect"}
+              </button>
+            )}
             <button className="secondary" onClick={() => void handleUnlink()} disabled={linkBusy}>
               Unlink
             </button>
@@ -195,6 +226,15 @@ export default function SettingsScreen({ onBack }: Props) {
               {linkBusy ? "Waiting for Robinhood..." : "Link Robinhood"}
             </button>
           </>
+        )}
+        {fallbackUrl && (
+          <p className="muted">
+            The popup was blocked.{" "}
+            <a href={fallbackUrl} target="_blank" rel="noreferrer">
+              Open the Robinhood authorization page
+            </a>{" "}
+            to continue.
+          </p>
         )}
         {linkError && <p className="error-text">{linkError}</p>}
       </section>

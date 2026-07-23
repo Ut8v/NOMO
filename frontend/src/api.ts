@@ -1,7 +1,10 @@
 import type { SetupStatus, SaveKeysRequest, SaveKeysResponse } from "@nomo/shared";
 
 export interface RobinhoodStatus {
+  /** Tokens are stored for the real Robinhood MCP. */
   linked: boolean;
+  /** Tools are registered and callable right now. */
+  active: boolean;
   tools: string[];
 }
 
