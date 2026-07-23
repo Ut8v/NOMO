@@ -50,7 +50,9 @@ export class RobinhoodOAuthProvider implements OAuthClientProvider {
   pendingAuthorizationUrl: URL | null = null;
 
   get redirectUrl(): string {
-    return `http://${config.host}:${config.port}/api/robinhood/callback`;
+    // IPv6 literals like ::1 must be bracketed to form a valid URL.
+    const host = config.host.includes(":") ? `[${config.host}]` : config.host;
+    return `http://${host}:${config.port}/api/robinhood/callback`;
   }
 
   get clientMetadata(): OAuthClientMetadata {
@@ -72,8 +74,21 @@ export class RobinhoodOAuthProvider implements OAuthClientProvider {
     return value;
   }
 
+  /** Called at the start of every link attempt so state is single use. */
+  rotateState(): string {
+    const value = randomBytes(16).toString("hex");
+    write(KEYS.state, value);
+    return value;
+  }
+
   expectedState(): string | null {
     return read(KEYS.state);
+  }
+
+  /** Drops the one-time state and PKCE verifier once a flow ends. */
+  clearTransient(): void {
+    remove(KEYS.state);
+    remove(KEYS.verifier);
   }
 
   clientInformation(): OAuthClientInformation | undefined {

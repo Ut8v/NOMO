@@ -29,6 +29,9 @@ export const oauthProvider = new RobinhoodOAuthProvider();
 let client: Client | null = null;
 let connecting: Promise<Client> | null = null;
 let registeredToolNames: string[] = [];
+// Incremented by unlink so results from a connect that was in flight when
+// the user unlinked are discarded instead of resurrecting the session.
+let generation = 0;
 
 function textFromContent(content: unknown): string {
   if (!Array.isArray(content)) return "";
@@ -52,11 +55,18 @@ async function connect(): Promise<Client> {
 async function ensureClient(): Promise<Client> {
   if (client) return client;
   if (!connecting) {
+    const startedGeneration = generation;
     connecting = connect()
       .then((c) => {
+        if (startedGeneration !== generation) {
+          void c.close().catch(() => undefined);
+          throw new Error("Robinhood connection cancelled by unlink.");
+        }
         client = c;
+        // Guarded so a stale client closing later cannot null out a
+        // healthy replacement.
         c.onclose = () => {
-          client = null;
+          if (client === c) client = null;
         };
         return c;
       })
@@ -74,8 +84,10 @@ async function callRobinhoodTool(name: string, input: unknown): Promise<unknown>
     result = await mcpClient.callTool({ name, arguments: (input ?? {}) as Record<string, unknown> });
   } catch (err) {
     // One reconnect attempt covers dropped sessions and expired access
-    // tokens (the transport refreshes tokens on connect).
-    client = null;
+    // tokens (the transport refreshes tokens on connect). The stale client
+    // is closed, not abandoned, so its transport cannot linger.
+    if (client === mcpClient) client = null;
+    void mcpClient.close().catch(() => undefined);
     mcpClient = await ensureClient();
     result = await mcpClient.callTool({ name, arguments: (input ?? {}) as Record<string, unknown> });
   }
@@ -92,8 +104,13 @@ async function callRobinhoodTool(name: string, input: unknown): Promise<unknown>
  * to server/data (gitignored) for inspection.
  */
 export async function connectAndRegisterTools(): Promise<string[]> {
+  const startedGeneration = generation;
   const mcpClient = await ensureClient();
   const discovered = await mcpClient.listTools();
+  if (startedGeneration !== generation) {
+    // Unlinked while discovery was in flight; register nothing.
+    return [];
+  }
 
   const snapshotPath = path.join(config.dataDir, "robinhood-mcp-tools.json");
   fs.writeFileSync(snapshotPath, JSON.stringify(discovered.tools, null, 2));
@@ -133,6 +150,8 @@ export function unregisterRobinhoodTools(): void {
  */
 export async function beginLink(): Promise<string> {
   oauthProvider.pendingAuthorizationUrl = null;
+  // Fresh single-use state for every link attempt.
+  oauthProvider.rotateState();
   try {
     await connectAndRegisterTools();
     return "";
@@ -159,6 +178,9 @@ export async function finishLink(code: string): Promise<void> {
 }
 
 export async function unlink(): Promise<void> {
+  // Invalidate any connect still in flight before tearing down state, so a
+  // late arrival cannot re-register tools after the user unlinked.
+  generation += 1;
   unregisterRobinhoodTools();
   if (client) {
     await client.close().catch(() => undefined);
@@ -167,11 +189,18 @@ export async function unlink(): Promise<void> {
   oauthProvider.clear();
 }
 
-export function getLinkStatus(): { linked: boolean; tools: string[] } {
-  // Tokens prove a real Robinhood link; registered tools also count so a
-  // no-auth mock server reports linked during tests.
+export interface LinkStatus {
+  /** Tokens are stored for the real Robinhood MCP. */
+  linked: boolean;
+  /** Tools are registered and callable right now. */
+  active: boolean;
+  tools: string[];
+}
+
+export function getLinkStatus(): LinkStatus {
   return {
-    linked: oauthProvider.isLinked() || registeredToolNames.length > 0,
+    linked: oauthProvider.isLinked(),
+    active: registeredToolNames.length > 0,
     tools: [...registeredToolNames],
   };
 }

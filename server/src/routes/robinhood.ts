@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { Router } from "express";
 import {
   beginLink,
@@ -6,6 +7,12 @@ import {
   oauthProvider,
   unlink,
 } from "../services/robinhoodMcp.js";
+
+function stateMatches(received: string, expected: string): boolean {
+  const a = Buffer.from(received);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 export const robinhoodRouter = Router();
 
@@ -37,7 +44,10 @@ robinhoodRouter.get("/callback", async (req, res) => {
     res.status(400).send(page("Robinhood link failed", "No authorization code was returned. Close this tab and try again."));
     return;
   }
-  if (expected && state !== expected) {
+  // This is an unauthenticated localhost GET that any web page could fire,
+  // so the state check must fail closed: no stored state means no link was
+  // started here, and the callback is rejected.
+  if (!expected || !state || !stateMatches(state, expected)) {
     res.status(400).send(page("Robinhood link rejected", "State mismatch. Close this tab and restart the link from settings."));
     return;
   }
@@ -48,10 +58,18 @@ robinhoodRouter.get("/callback", async (req, res) => {
   } catch (err) {
     console.error("Robinhood link failed to finish:", err);
     res.status(502).send(page("Robinhood link failed", "Token exchange failed. Close this tab and retry from settings."));
+  } finally {
+    // State and verifier are single use regardless of outcome.
+    oauthProvider.clearTransient();
   }
 });
 
 robinhoodRouter.post("/unlink", async (_req, res) => {
-  await unlink();
-  res.json({ linked: false });
+  try {
+    await unlink();
+    res.json({ linked: false });
+  } catch (err) {
+    console.error("Robinhood unlink failed:", err);
+    res.status(500).json({ error: "Unlink failed. Check the server logs." });
+  }
 });
