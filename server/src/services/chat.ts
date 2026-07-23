@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { ChatErrorCode, ChatMessage } from "@nomo/shared";
+import type { ChartSpec, ChatErrorCode, ChatMessage } from "@nomo/shared";
 import { config } from "../config.js";
+import { recordToolCall } from "../db/auditLog.js";
 import { getCredential } from "../db/credentials.js";
 import { getTool, getToolSchemas } from "../tools/registry.js";
 
@@ -27,7 +28,7 @@ function buildSystemPrompt(toolCount: number): string {
     "when you cannot know something, say so.",
   ].join(" ");
   return toolCount > 0
-    ? `${base} Use the available tools when they help answer the question.`
+    ? `${base} Use the available tools when they help answer the question. Charts you rendered in earlier turns are visible to the user but omitted from this transcript; call render_chart again whenever a new or updated chart is needed.`
     : `${base} No tools are available yet; say so if asked to fetch live data.`;
 }
 
@@ -37,44 +38,45 @@ const MAX_TOKENS = 4096;
 // that legitimate multi step tool use in later phases will not hit it.
 const MAX_TOOL_ROUNDS = 10;
 
-async function executeToolUse(
-  block: Anthropic.ToolUseBlock,
-): Promise<Anthropic.ToolResultBlockParam> {
+interface ToolUseOutcome {
+  block: Anthropic.ToolResultBlockParam;
+  chart?: ChartSpec;
+}
+
+async function executeToolUse(block: Anthropic.ToolUseBlock): Promise<ToolUseOutcome> {
+  const errorResult = (content: string): ToolUseOutcome => ({
+    block: { type: "tool_result", tool_use_id: block.id, content, is_error: true },
+  });
+
   const tool = getTool(block.name);
   if (!tool) {
-    return {
-      type: "tool_result",
-      tool_use_id: block.id,
-      content: `Unknown tool: ${block.name}`,
-      is_error: true,
-    };
+    recordToolCall({ toolName: block.name, tier: "unknown", params: block.input, outcome: "rejected: unknown tool" });
+    return errorResult(`Unknown tool: ${block.name}`);
   }
   // Hard rule from CLAUDE.md: execution tier tools never run directly. The
   // confirmation gate (Phase 5) is the only path allowed to invoke them, so
   // this dispatcher refuses them unconditionally.
   if (tool.tier === "execution") {
-    return {
-      type: "tool_result",
-      tool_use_id: block.id,
-      content:
-        "Execution tools require explicit user confirmation and cannot run from chat. The confirmation flow is not available yet.",
-      is_error: true,
-    };
+    recordToolCall({ toolName: tool.name, tier: tool.tier, params: block.input, outcome: "blocked: no confirmation gate" });
+    return errorResult(
+      "Execution tools require explicit user confirmation and cannot run from chat. The confirmation flow is not available yet.",
+    );
   }
   try {
     const result = await tool.execute(block.input);
+    recordToolCall({ toolName: tool.name, tier: tool.tier, params: block.input, outcome: "ok" });
     return {
-      type: "tool_result",
-      tool_use_id: block.id,
-      content: JSON.stringify(result),
+      block: {
+        type: "tool_result",
+        tool_use_id: block.id,
+        content: JSON.stringify(result.forModel),
+      },
+      chart: result.chart,
     };
   } catch (err) {
-    return {
-      type: "tool_result",
-      tool_use_id: block.id,
-      content: err instanceof Error ? err.message : "Tool execution failed.",
-      is_error: true,
-    };
+    const message = err instanceof Error ? err.message : "Tool execution failed.";
+    recordToolCall({ toolName: tool.name, tier: tool.tier, params: block.input, outcome: `error: ${message}` });
+    return errorResult(message);
   }
 }
 
@@ -100,14 +102,18 @@ function mapAnthropicError(err: unknown): Error {
   return new ChatError("stream_error", "The chat stream failed unexpectedly.");
 }
 
+export interface ChatTurnHandlers {
+  onText: (text: string) => void;
+  onChart: (spec: ChartSpec) => void;
+}
+
 /**
- * Runs one assistant turn: streams text to onText and resolves tool calls
- * in a loop until the model stops. The registry is empty in this phase, so
- * the loop body runs once, but later phases plug tools in without changes.
+ * Runs one assistant turn: streams text and chart specs to the handlers and
+ * resolves tool calls in a loop until the model stops.
  */
 export async function streamChatTurn(
   messages: ChatMessage[],
-  onText: (text: string) => void,
+  handlers: ChatTurnHandlers,
   signal?: AbortSignal,
 ): Promise<void> {
   const apiKey = getCredential("anthropic");
@@ -136,7 +142,7 @@ export async function streamChatTurn(
         },
         { signal },
       );
-      stream.on("text", onText);
+      stream.on("text", handlers.onText);
       final = await stream.finalMessage();
     } catch (err) {
       throw mapAnthropicError(err);
@@ -149,9 +155,14 @@ export async function streamChatTurn(
     const toolUses = final.content.filter(
       (block): block is Anthropic.ToolUseBlock => block.type === "tool_use",
     );
-    const results = await Promise.all(toolUses.map(executeToolUse));
+    const outcomes = await Promise.all(toolUses.map(executeToolUse));
+    for (const outcome of outcomes) {
+      if (outcome.chart) {
+        handlers.onChart(outcome.chart);
+      }
+    }
     conversation.push({ role: "assistant", content: final.content });
-    conversation.push({ role: "user", content: results });
+    conversation.push({ role: "user", content: outcomes.map((outcome) => outcome.block) });
   }
 
   throw new ChatError("stream_error", "The tool loop exceeded its round limit.");

@@ -231,3 +231,35 @@ button.secondary {
   display: flex;
   gap: 0.5rem;
 }
+
+.chart-block {
+  width: 100%;
+  min-width: 18rem;
+  margin: 0.5rem 0;
+}
+
+.chart-caption {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+  margin-bottom: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.chart-caption-ticker {
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.chart-canvas {
+  width: 100%;
+  height: 320px;
+  border: 1px solid #262b36;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.bubble:has(.chart-block) {
+  max-width: 100%;
+  width: 100%;
+}

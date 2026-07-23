@@ -52,7 +52,14 @@ chatRouter.post("/", async (req, res) => {
   res.on("close", () => abort.abort());
 
   try {
-    await streamChatTurn(messages, (text) => send({ type: "text", text }), abort.signal);
+    await streamChatTurn(
+      messages,
+      {
+        onText: (text) => send({ type: "text", text }),
+        onChart: (spec) => send({ type: "chart", spec }),
+      },
+      abort.signal,
+    );
     send({ type: "done" });
   } catch (err) {
     if (abort.signal.aborted) {

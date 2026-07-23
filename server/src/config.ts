@@ -20,6 +20,11 @@ export const config = {
   port: Number(process.env.PORT) || 3001,
   host,
   anthropicModel: process.env.ANTHROPIC_MODEL || "claude-sonnet-5",
+  // Base URL overrides exist so tests can point at mock providers; the
+  // Anthropic SDK reads ANTHROPIC_BASE_URL itself, this copy is for the
+  // places that call fetch directly.
+  anthropicBaseUrl: process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com",
+  polygonBaseUrl: process.env.POLYGON_BASE_URL || "https://api.polygon.io",
   dataDir: path.join(serverRoot, "data"),
   dbPath: path.join(serverRoot, "data", "app.db"),
 };

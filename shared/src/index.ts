@@ -15,3 +15,12 @@ export type {
 } from "./chat.js";
 
 export { MAX_CHAT_MESSAGES } from "./chat.js";
+
+export type {
+  OhlcvBar,
+  ChartTimeframe,
+  OverlayKind,
+  OverlayPoint,
+  ChartOverlay,
+  ChartSpec,
+} from "./chart.js";
