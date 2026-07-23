@@ -1,4 +1,5 @@
 import type { KeyValidationResult } from "@nomo/shared";
+import { config } from "../config.js";
 
 const TIMEOUT_MS = 10_000;
 
@@ -12,7 +13,7 @@ async function fetchWithTimeout(url: string, init: RequestInit): Promise<Respons
  */
 export async function validateAnthropicKey(key: string): Promise<KeyValidationResult> {
   try {
-    const res = await fetchWithTimeout("https://api.anthropic.com/v1/models?limit=1", {
+    const res = await fetchWithTimeout(`${config.anthropicBaseUrl}/v1/models?limit=1`, {
       headers: {
         "x-api-key": key,
         "anthropic-version": "2023-06-01",
@@ -36,7 +37,7 @@ export async function validatePolygonKey(key: string): Promise<KeyValidationResu
   try {
     // The key goes in a header, not the query string, so it cannot end up
     // in URL based logs.
-    const res = await fetchWithTimeout("https://api.polygon.io/v1/marketstatus/now", {
+    const res = await fetchWithTimeout(`${config.polygonBaseUrl}/v1/marketstatus/now`, {
       headers: { Authorization: `Bearer ${key}` },
     });
     if (res.ok) return { valid: true };
