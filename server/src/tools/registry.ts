@@ -1,5 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { ChartSpec } from "@nomo/shared";
+import { isTierEnabled } from "../db/settings.js";
 
 /**
  * Every tool the model can see is registered here with an explicit tier.
@@ -33,8 +34,21 @@ export function registerTool(tool: RegisteredTool): void {
   tools.set(tool.name, tool);
 }
 
-/** Tools currently exposed to the model. Per-tool toggles arrive in a later phase. */
+export function unregisterTool(name: string): void {
+  tools.delete(name);
+}
+
+/**
+ * Tools currently exposed to the model. A disabled tier is filtered here,
+ * which is what removes its tools from the schema sent to Claude rather
+ * than merely blocking calls.
+ */
 export function getEnabledTools(): RegisteredTool[] {
+  return [...tools.values()].filter((tool) => isTierEnabled(tool.tier));
+}
+
+/** All registered tools regardless of tier setting, for the settings panel. */
+export function getAllTools(): RegisteredTool[] {
   return [...tools.values()];
 }
 

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { SetupStatus } from "@nomo/shared";
 import { fetchSetupStatus } from "./api";
 import SetupScreen from "./components/SetupScreen";
+import SettingsScreen from "./components/SettingsScreen";
 import Chat from "./components/Chat";
 
 export default function App() {
@@ -47,15 +48,15 @@ export default function App() {
   // component state survives a key update.
   return (
     <>
-      {(!status.configured || showSetup) && (
+      {!status.configured && (
         <SetupScreen
           onConfigured={() => {
             setShowSetup(false);
             void loadStatus();
           }}
-          onCancel={status.configured ? () => setShowSetup(false) : undefined}
         />
       )}
+      {status.configured && showSetup && <SettingsScreen onBack={() => setShowSetup(false)} />}
       {status.configured && (
         <div className={showSetup ? "hidden" : undefined}>
           <Chat onOpenSettings={() => setShowSetup(true)} />

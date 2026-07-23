@@ -3,6 +3,7 @@ import type { ChartSpec, ChatErrorCode, ChatMessage } from "@nomo/shared";
 import { config } from "../config.js";
 import { recordToolCall } from "../db/auditLog.js";
 import { getCredential } from "../db/credentials.js";
+import { isTierEnabled } from "../db/settings.js";
 import { getTool, getToolSchemas } from "../tools/registry.js";
 
 export class ChatError extends Error {
@@ -52,6 +53,13 @@ async function executeToolUse(block: Anthropic.ToolUseBlock): Promise<ToolUseOut
   if (!tool) {
     recordToolCall({ toolName: block.name, tier: "unknown", params: block.input, outcome: "rejected: unknown tool" });
     return errorResult(`Unknown tool: ${block.name}`);
+  }
+  // Disabled tiers are removed from the schema sent to Claude; this guard
+  // covers a call arriving anyway, e.g. from a turn started before the
+  // toggle changed.
+  if (!isTierEnabled(tool.tier)) {
+    recordToolCall({ toolName: tool.name, tier: tool.tier, params: block.input, outcome: "blocked: tier disabled" });
+    return errorResult(`The ${tool.tier} tools are currently disabled in settings.`);
   }
   // Hard rule from CLAUDE.md: execution tier tools never run directly. The
   // confirmation gate (Phase 5) is the only path allowed to invoke them, so

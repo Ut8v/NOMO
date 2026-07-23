@@ -4,11 +4,10 @@ import { saveKeys } from "../api";
 
 interface Props {
   onConfigured: () => void;
-  /** Present when the app is already configured, so leaving is allowed. */
-  onCancel?: () => void;
 }
 
-export default function SetupScreen({ onConfigured, onCancel }: Props) {
+/** First-run only; once configured, changes happen in SettingsScreen. */
+export default function SetupScreen({ onConfigured }: Props) {
   const [anthropicKey, setAnthropicKey] = useState("");
   const [polygonKey, setPolygonKey] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -53,7 +52,7 @@ export default function SetupScreen({ onConfigured, onCancel }: Props) {
   return (
     <div className="centered">
       <form className="panel setup-form" onSubmit={handleSubmit}>
-        <h1>{onCancel ? "Update API keys" : "Welcome to NOMO"}</h1>
+        <h1>Welcome to NOMO</h1>
         <p className="muted">
           Both keys are validated with a test call, then stored in a local
           database on this machine. They are never sent anywhere else.
@@ -88,11 +87,6 @@ export default function SetupScreen({ onConfigured, onCancel }: Props) {
         <button type="submit" disabled={submitting}>
           {submitting ? "Validating..." : "Validate and save"}
         </button>
-        {onCancel && (
-          <button type="button" className="secondary" onClick={onCancel} disabled={submitting}>
-            Back to chat
-          </button>
-        )}
       </form>
     </div>
   );

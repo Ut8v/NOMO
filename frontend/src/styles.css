@@ -92,6 +92,92 @@ button.secondary {
   display: none;
 }
 
+.success-text {
+  color: #4fd1a5;
+  margin: 0.25rem 0 0;
+  font-size: 0.9rem;
+}
+
+.settings {
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 0 1rem 3rem;
+}
+
+.settings-section {
+  margin-top: 1.75rem;
+  padding: 1.25rem;
+  background: #171a21;
+  border: 1px solid #262b36;
+  border-radius: 12px;
+}
+
+.settings-section h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+}
+
+.settings-section label {
+  display: block;
+  margin: 1rem 0 0.4rem;
+  font-size: 0.9rem;
+  color: #c3c9d4;
+}
+
+.settings-section input[type="password"] {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid #2e3442;
+  background: #0f1115;
+  color: #e6e8eb;
+  font-size: 0.95rem;
+}
+
+.settings-section button {
+  width: auto;
+  padding: 0.55rem 1.1rem;
+  margin-top: 1rem;
+}
+
+.tier-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  border-top: 1px solid #20242e;
+}
+
+.tier-row:first-of-type {
+  border-top: none;
+}
+
+.tier-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.tier-note {
+  font-size: 0.85rem;
+  margin-top: 0.2rem;
+}
+
+.switch {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  color: #c3c9d4;
+  flex-shrink: 0;
+}
+
+.switch input {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: #4f7cff;
+}
+
 .chat {
   display: flex;
   flex-direction: column;

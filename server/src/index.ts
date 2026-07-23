@@ -1,10 +1,12 @@
 import { config } from "./config.js";
 import { initDatabase } from "./db/index.js";
 import { registerMarketDataTools } from "./tools/marketData.js";
+import { resumeLinkIfPresent } from "./services/robinhoodMcp.js";
 import { createApp } from "./app.js";
 
 initDatabase();
 registerMarketDataTools();
+resumeLinkIfPresent();
 
 const app = createApp();
 
