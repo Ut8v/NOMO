@@ -16,6 +16,10 @@ if (!isLoopback) {
   process.exit(1);
 }
 
+// Overridable so integration tests run against a throwaway database
+// instead of the real local one.
+const dataDir = process.env.NOMO_DATA_DIR || path.join(serverRoot, "data");
+
 export const config = {
   port: Number(process.env.PORT) || 3001,
   host,
@@ -26,6 +30,6 @@ export const config = {
   anthropicBaseUrl: process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com",
   polygonBaseUrl: process.env.POLYGON_BASE_URL || "https://api.polygon.io",
   robinhoodMcpUrl: process.env.ROBINHOOD_MCP_URL || "https://agent.robinhood.com/mcp/trading",
-  dataDir: path.join(serverRoot, "data"),
-  dbPath: path.join(serverRoot, "data", "app.db"),
+  dataDir,
+  dbPath: path.join(dataDir, "app.db"),
 };
