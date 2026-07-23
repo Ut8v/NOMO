@@ -26,10 +26,12 @@ export type ChatErrorCode =
   | "stream_error";
 
 import type { ChartSpec } from "./chart.js";
+import type { PendingOrderView } from "./orders.js";
 
 /** Events sent over the SSE chat stream, one JSON object per data line. */
 export type ChatStreamEvent =
   | { type: "text"; text: string }
   | { type: "chart"; spec: ChartSpec }
+  | { type: "pending_order"; order: PendingOrderView }
   | { type: "done" }
   | { type: "error"; code: ChatErrorCode; message: string };
