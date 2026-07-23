@@ -4,6 +4,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { auth } from "@modelcontextprotocol/sdk/client/auth.js";
 import type Anthropic from "@anthropic-ai/sdk";
+import type { PendingOrderView } from "@nomo/shared";
 import { config } from "../config.js";
 import { registerTool, unregisterTool } from "../tools/registry.js";
 import { RobinhoodOAuthProvider } from "./robinhoodAuth.js";
@@ -133,6 +134,31 @@ export async function connectAndRegisterTools(): Promise<string[]> {
   }
   console.log(`Registered ${registeredToolNames.length} Robinhood read tools at portfolio_read tier.`);
   return registeredToolNames;
+}
+
+/**
+ * THE ONLY PATH to a Robinhood execution tool. It accepts nothing but a
+ * stored pending order in confirmed status; parameters are taken from that
+ * row and never from model output. Do not add another caller besides the
+ * confirmation gate, and do not add a bypass.
+ */
+export async function placeConfirmedOrder(order: PendingOrderView): Promise<string> {
+  if (order.status !== "confirmed") {
+    throw new Error(
+      `Refusing to place order ${order.id}: status is ${order.status}, not confirmed.`,
+    );
+  }
+  const args: Record<string, unknown> = {
+    symbol: order.ticker,
+    side: order.side,
+    quantity: order.quantity,
+    order_type: order.orderType,
+  };
+  if (order.orderType === "limit" && order.limitPrice !== null) {
+    args.limit_price = order.limitPrice;
+  }
+  const ack = await callRobinhoodTool("place_equity_order", args);
+  return typeof ack === "string" ? ack : JSON.stringify(ack);
 }
 
 export function unregisterRobinhoodTools(): void {

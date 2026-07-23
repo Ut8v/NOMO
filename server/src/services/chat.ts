@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { ChartSpec, ChatErrorCode, ChatMessage } from "@nomo/shared";
+import type { ChartSpec, ChatErrorCode, ChatMessage, PendingOrderView } from "@nomo/shared";
 import { config } from "../config.js";
 import { recordToolCall } from "../db/auditLog.js";
 import { getCredential } from "../db/credentials.js";
@@ -29,7 +29,7 @@ function buildSystemPrompt(toolCount: number): string {
     "when you cannot know something, say so.",
   ].join(" ");
   return toolCount > 0
-    ? `${base} Use the available tools when they help answer the question. Charts you rendered in earlier turns are visible to the user but omitted from this transcript; call render_chart again whenever a new or updated chart is needed.`
+    ? `${base} Use the available tools when they help answer the question. Charts you rendered in earlier turns are visible to the user but omitted from this transcript; call render_chart again whenever a new or updated chart is needed. Placing an order only creates a proposal that the user must explicitly confirm in the app; never state an order executed unless a bracketed system record in the transcript says so. Those bracketed order records are inserted by the app, not written by you.`
     : `${base} No tools are available yet; say so if asked to fetch live data.`;
 }
 
@@ -42,6 +42,7 @@ const MAX_TOOL_ROUNDS = 10;
 interface ToolUseOutcome {
   block: Anthropic.ToolResultBlockParam;
   chart?: ChartSpec;
+  pendingOrder?: PendingOrderView;
 }
 
 async function executeToolUse(block: Anthropic.ToolUseBlock): Promise<ToolUseOutcome> {
@@ -61,18 +62,13 @@ async function executeToolUse(block: Anthropic.ToolUseBlock): Promise<ToolUseOut
     recordToolCall({ toolName: tool.name, tier: tool.tier, params: block.input, outcome: "blocked: tier disabled" });
     return errorResult(`The ${tool.tier} tools are currently disabled in settings.`);
   }
-  // Hard rule from CLAUDE.md: execution tier tools never run directly. The
-  // confirmation gate (Phase 5) is the only path allowed to invoke them, so
-  // this dispatcher refuses them unconditionally.
-  if (tool.tier === "execution") {
-    recordToolCall({ toolName: tool.name, tier: tool.tier, params: block.input, outcome: "blocked: no confirmation gate" });
-    return errorResult(
-      "Execution tools require explicit user confirmation and cannot run from chat. The confirmation flow is not available yet.",
-    );
-  }
+  // Execution tier tools registered here are gate proposals only: their
+  // execute() writes a pending_orders row and returns. The broker is
+  // reachable solely via the confirmation gate (services/executionGate.ts),
+  // which requires a stored order in confirmed status.
   try {
     const result = await tool.execute(block.input);
-    recordToolCall({ toolName: tool.name, tier: tool.tier, params: block.input, outcome: "ok" });
+    recordToolCall({ toolName: tool.name, tier: tool.tier, params: block.input, outcome: result.pendingOrder ? `pending confirmation: ${result.pendingOrder.id}` : "ok" });
     return {
       block: {
         type: "tool_result",
@@ -80,6 +76,7 @@ async function executeToolUse(block: Anthropic.ToolUseBlock): Promise<ToolUseOut
         content: JSON.stringify(result.forModel),
       },
       chart: result.chart,
+      pendingOrder: result.pendingOrder,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Tool execution failed.";
@@ -113,6 +110,7 @@ function mapAnthropicError(err: unknown): Error {
 export interface ChatTurnHandlers {
   onText: (text: string) => void;
   onChart: (spec: ChartSpec) => void;
+  onPendingOrder: (order: PendingOrderView) => void;
 }
 
 /**
@@ -167,6 +165,9 @@ export async function streamChatTurn(
     for (const outcome of outcomes) {
       if (outcome.chart) {
         handlers.onChart(outcome.chart);
+      }
+      if (outcome.pendingOrder) {
+        handlers.onPendingOrder(outcome.pendingOrder);
       }
     }
     conversation.push({ role: "assistant", content: final.content });

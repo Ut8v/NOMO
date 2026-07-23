@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type { ChartSpec } from "@nomo/shared";
+import type { ChartSpec, PendingOrderView } from "@nomo/shared";
 import { isTierEnabled } from "../db/settings.js";
 
 /**
@@ -15,6 +15,8 @@ export interface ToolExecutionResult {
   forModel: unknown;
   /** Full chart spec streamed to the frontend, never sent to the model. */
   chart?: ChartSpec;
+  /** Pending order streamed to the frontend as a confirmation card. */
+  pendingOrder?: PendingOrderView;
 }
 
 export interface RegisteredTool {
