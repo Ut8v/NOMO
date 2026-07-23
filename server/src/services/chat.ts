@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { ChartSpec, ChatErrorCode, ChatMessage } from "@nomo/shared";
 import { config } from "../config.js";
+import { recordToolCall } from "../db/auditLog.js";
 import { getCredential } from "../db/credentials.js";
 import { getTool, getToolSchemas } from "../tools/registry.js";
 
@@ -49,18 +50,21 @@ async function executeToolUse(block: Anthropic.ToolUseBlock): Promise<ToolUseOut
 
   const tool = getTool(block.name);
   if (!tool) {
+    recordToolCall({ toolName: block.name, tier: "unknown", params: block.input, outcome: "rejected: unknown tool" });
     return errorResult(`Unknown tool: ${block.name}`);
   }
   // Hard rule from CLAUDE.md: execution tier tools never run directly. The
   // confirmation gate (Phase 5) is the only path allowed to invoke them, so
   // this dispatcher refuses them unconditionally.
   if (tool.tier === "execution") {
+    recordToolCall({ toolName: tool.name, tier: tool.tier, params: block.input, outcome: "blocked: no confirmation gate" });
     return errorResult(
       "Execution tools require explicit user confirmation and cannot run from chat. The confirmation flow is not available yet.",
     );
   }
   try {
     const result = await tool.execute(block.input);
+    recordToolCall({ toolName: tool.name, tier: tool.tier, params: block.input, outcome: "ok" });
     return {
       block: {
         type: "tool_result",
@@ -70,7 +74,9 @@ async function executeToolUse(block: Anthropic.ToolUseBlock): Promise<ToolUseOut
       chart: result.chart,
     };
   } catch (err) {
-    return errorResult(err instanceof Error ? err.message : "Tool execution failed.");
+    const message = err instanceof Error ? err.message : "Tool execution failed.";
+    recordToolCall({ toolName: tool.name, tier: tool.tier, params: block.input, outcome: `error: ${message}` });
+    return errorResult(message);
   }
 }
 
