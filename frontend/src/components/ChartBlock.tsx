@@ -103,7 +103,7 @@ export default function ChartBlock({ spec }: Props) {
         <span className="muted">{spec.timeframe}</span>
         {spec.overlays.map((overlay, index) => (
           <span
-            key={overlay.label}
+            key={`${overlay.label}-${index}`}
             className="chart-caption-overlay"
             style={{ color: OVERLAY_COLORS[index % OVERLAY_COLORS.length] }}
           >

@@ -89,11 +89,11 @@ function parseIndicators(raw: unknown): IndicatorRequest[] {
   if (!Array.isArray(raw)) {
     throw new Error("indicators must be an array of strings like sma_20, ema_50, vwap.");
   }
-  const requests: IndicatorRequest[] = [];
+  const requests = new Map<string, IndicatorRequest>();
   for (const entry of raw) {
     const text = typeof entry === "string" ? entry.trim().toLowerCase() : "";
     if (text === "vwap") {
-      requests.push({ kind: "vwap" });
+      requests.set("vwap", { kind: "vwap" });
       continue;
     }
     if (text === "volume") {
@@ -104,9 +104,12 @@ function parseIndicators(raw: unknown): IndicatorRequest[] {
     if (!match || Number(match[2]) < 1) {
       throw new Error(`Unknown indicator "${String(entry)}". Use sma_N, ema_N, or vwap.`);
     }
-    requests.push({ kind: match[1] as "sma" | "ema", period: Number(match[2]) });
+    const kind = match[1] as "sma" | "ema";
+    // Keyed by kind and period so spelling variants like sma_20 and sma20
+    // cannot produce duplicate overlays.
+    requests.set(`${kind}:${match[2]}`, { kind, period: Number(match[2]) });
   }
-  return requests;
+  return [...requests.values()];
 }
 
 function buildOverlays(bars: OhlcvBar[], requests: IndicatorRequest[]): ChartOverlay[] {
