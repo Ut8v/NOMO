@@ -23,14 +23,17 @@ export interface UiMessage {
   blocks: MessageBlock[];
 }
 
-/** Flattens a UI message to the plain text the chat API accepts. */
+/**
+ * Flattens a UI message to the plain text the chat API accepts. Chart blocks
+ * are omitted rather than replaced with placeholder text: the model never
+ * authored a placeholder, and echoing one back teaches it to imitate the
+ * placeholder instead of calling render_chart. The system prompt tells the
+ * model that previously rendered charts are not in the transcript.
+ */
 function toChatMessage(message: UiMessage): ChatMessage {
   const content = message.blocks
-    .map((block) =>
-      block.kind === "text"
-        ? block.text
-        : `[Chart shown: ${block.spec.ticker} ${block.spec.timeframe}]`,
-    )
+    .filter((block): block is { kind: "text"; text: string } => block.kind === "text")
+    .map((block) => block.text)
     .filter((part) => part.length > 0)
     .join("\n\n");
   return { role: message.role, content };

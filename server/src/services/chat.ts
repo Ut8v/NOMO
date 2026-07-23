@@ -28,7 +28,7 @@ function buildSystemPrompt(toolCount: number): string {
     "when you cannot know something, say so.",
   ].join(" ");
   return toolCount > 0
-    ? `${base} Use the available tools when they help answer the question.`
+    ? `${base} Use the available tools when they help answer the question. Charts you rendered in earlier turns are visible to the user but omitted from this transcript; call render_chart again whenever a new or updated chart is needed.`
     : `${base} No tools are available yet; say so if asked to fetch live data.`;
 }
 
