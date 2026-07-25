@@ -1,4 +1,12 @@
-import type { PendingOrderView, SetupStatus, SaveKeysRequest, SaveKeysResponse } from "@nomo/shared";
+import type {
+  ConversationDetail,
+  ConversationSummary,
+  PendingOrderView,
+  SetupStatus,
+  SaveKeysRequest,
+  SaveKeysResponse,
+  StoredMessage,
+} from "@nomo/shared";
 
 export interface RobinhoodStatus {
   /** Tokens are stored for the real Robinhood MCP. */
@@ -86,4 +94,40 @@ export async function saveKeys(request: SaveKeysRequest): Promise<SaveKeysRespon
     throw new Error(body?.error ?? `Failed to save keys (${res.status})`);
   }
   return res.json();
+}
+
+export async function listConversations(): Promise<ConversationSummary[]> {
+  const res = await fetch("/api/conversations");
+  if (!res.ok) throw new Error(`Failed to load conversations (${res.status})`);
+  return (await res.json()).conversations as ConversationSummary[];
+}
+
+export async function createConversation(title: string): Promise<ConversationSummary> {
+  const res = await fetch("/api/conversations", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }),
+  });
+  if (!res.ok) throw new Error(`Failed to create conversation (${res.status})`);
+  return (await res.json()).conversation as ConversationSummary;
+}
+
+export async function getConversation(id: string): Promise<ConversationDetail> {
+  const res = await fetch(`/api/conversations/${encodeURIComponent(id)}`);
+  if (!res.ok) throw new Error(`Failed to load conversation (${res.status})`);
+  return (await res.json()).conversation as ConversationDetail;
+}
+
+export async function saveConversationMessages(id: string, messages: StoredMessage[]): Promise<void> {
+  const res = await fetch(`/api/conversations/${encodeURIComponent(id)}/messages`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages }),
+  });
+  if (!res.ok) throw new Error(`Failed to save conversation (${res.status})`);
+}
+
+export async function deleteConversation(id: string): Promise<void> {
+  const res = await fetch(`/api/conversations/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`Failed to delete conversation (${res.status})`);
 }

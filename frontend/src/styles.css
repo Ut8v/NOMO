@@ -384,6 +384,52 @@ button.secondary {
   gap: 0.5rem;
 }
 
+.history-panel {
+  border: 1px solid #262b36;
+  border-radius: 10px;
+  background: #12151c;
+  margin-bottom: 0.75rem;
+  padding: 0.4rem;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.history-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 6px;
+}
+
+.history-row.history-active {
+  background: #1b2130;
+}
+
+.history-open {
+  flex: 1;
+  margin: 0;
+  width: auto;
+  text-align: left;
+  background: none;
+  color: #d5dae3;
+  padding: 0.55rem 0.6rem;
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-delete {
+  margin: 0;
+  width: auto;
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid #3a4152;
+  color: #9aa3b2;
+  padding: 0.3rem 0.55rem;
+  font-size: 0.78rem;
+}
+
 .chart-block {
   width: 100%;
   min-width: 18rem;
