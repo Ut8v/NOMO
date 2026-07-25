@@ -178,21 +178,142 @@ button.secondary {
   accent-color: #4f7cff;
 }
 
+.app-shell {
+  display: flex;
+  height: 100vh;
+}
+
+.sidebar {
+  width: 16rem;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: #12151c;
+  border-right: 1px solid #262b36;
+  overflow: hidden;
+}
+
+.sidebar-top {
+  padding: 0.75rem;
+}
+
+.new-chat-btn {
+  margin: 0;
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  background: #171a21;
+  border: 1px solid #2e3442;
+  color: #e6e8eb;
+  font-size: 0.9rem;
+  text-align: left;
+}
+
+.new-chat-btn:not(:disabled):hover {
+  background: #1f242e;
+}
+
+.sidebar-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 0.5rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.sidebar-empty {
+  padding: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+}
+
+.sidebar-item:hover {
+  background: #1b2130;
+}
+
+.sidebar-item-active {
+  background: #1f2637;
+}
+
+.sidebar-item-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  width: auto;
+  text-align: left;
+  background: none;
+  color: #d5dae3;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.88rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-item-del {
+  margin: 0;
+  width: auto;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  background: none;
+  border: none;
+  color: #6b7280;
+  padding: 0.35rem 0.5rem;
+  opacity: 0;
+}
+
+.sidebar-item:hover .sidebar-item-del {
+  opacity: 1;
+}
+
+.sidebar-item-del:hover {
+  color: #f2726f;
+}
+
 .chat {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   height: 100vh;
-  max-width: 48rem;
-  margin: 0 auto;
-  padding: 0 1rem;
 }
 
 .chat-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.9rem 0.25rem;
+  padding: 0.9rem 1rem;
   border-bottom: 1px solid #262b36;
+}
+
+.chat-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.icon-button {
+  margin: 0;
+  width: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.3rem;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: #9aa3b2;
+}
+
+.icon-button:hover {
+  background: #1b2130;
+  color: #e6e8eb;
 }
 
 .chat-title {
@@ -216,7 +337,10 @@ button.secondary {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  padding: 1.25rem 0.25rem;
+  padding: 1.25rem 1rem;
+  width: 100%;
+  max-width: 48rem;
+  margin: 0 auto;
 }
 
 .chat-empty {
@@ -242,6 +366,12 @@ button.secondary {
   align-self: flex-start;
   background: #171a21;
   border: 1px solid #262b36;
+}
+
+/* The bubble uses pre-wrap for plain user text; markdown handles its own
+   whitespace, so reset it here to avoid doubled-up blank lines. */
+.markdown {
+  white-space: normal;
 }
 
 .markdown > *:first-child {
@@ -310,6 +440,90 @@ button.secondary {
   text-align: left;
 }
 
+.activity {
+  margin-bottom: 0.5rem;
+  border: 1px solid #262b36;
+  border-radius: 8px;
+  background: #0f1218;
+  overflow: hidden;
+}
+
+.activity-header {
+  margin: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: none;
+  border: none;
+  color: #9aa3b2;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.82rem;
+  text-align: left;
+}
+
+.activity-header:hover {
+  color: #c3c9d4;
+}
+
+.activity-chevron {
+  display: inline-flex;
+  transition: transform 0.12s ease;
+}
+
+.activity-chevron-open {
+  transform: rotate(90deg);
+}
+
+.activity-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0.6rem 0.5rem 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.activity-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: #c3c9d4;
+}
+
+.activity-item.activity-done {
+  color: #4fd1a5;
+}
+
+.activity-item.activity-error {
+  color: #f2726f;
+}
+
+.activity-name {
+  color: #d5dae3;
+}
+
+.activity-item.activity-running .activity-name {
+  color: #9aa3b2;
+}
+
+.activity-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid #2e3442;
+  border-top-color: #6f97ff;
+  border-radius: 50%;
+  animation: activity-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes activity-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .caret {
   display: inline-block;
   width: 0.5em;
@@ -331,8 +545,10 @@ button.secondary {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  margin-bottom: 0.75rem;
+  margin: 0 auto 0.75rem;
   padding: 0.6rem 0.9rem;
+  width: 100%;
+  max-width: 48rem;
   border: 1px solid #5b2f31;
   border-radius: 8px;
   background: #241618;
@@ -350,7 +566,10 @@ button.secondary {
   display: flex;
   gap: 0.6rem;
   align-items: flex-end;
-  padding: 0 0 1rem;
+  padding: 0 1rem 1rem;
+  width: 100%;
+  max-width: 48rem;
+  margin: 0 auto;
 }
 
 .chat-input textarea {
@@ -381,53 +600,15 @@ button.secondary {
 
 .chat-header-actions {
   display: flex;
-  gap: 0.5rem;
-}
-
-.history-panel {
-  border: 1px solid #262b36;
-  border-radius: 10px;
-  background: #12151c;
-  margin-bottom: 0.75rem;
-  padding: 0.4rem;
-  max-height: 40vh;
-  overflow-y: auto;
-}
-
-.history-row {
-  display: flex;
   align-items: center;
   gap: 0.5rem;
-  border-radius: 6px;
 }
 
-.history-row.history-active {
-  background: #1b2130;
-}
-
-.history-open {
-  flex: 1;
-  margin: 0;
-  width: auto;
-  text-align: left;
-  background: none;
-  color: #d5dae3;
-  padding: 0.55rem 0.6rem;
-  font-size: 0.9rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.history-delete {
-  margin: 0;
-  width: auto;
-  flex-shrink: 0;
-  background: none;
-  border: 1px solid #3a4152;
+.cost-chip {
+  font-size: 0.8rem;
   color: #9aa3b2;
-  padding: 0.3rem 0.55rem;
-  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  padding-right: 0.15rem;
 }
 
 .chart-block {

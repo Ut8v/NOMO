@@ -1,10 +1,13 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { ChartSpec, ChatErrorCode, ChatMessage, PendingOrderView } from "@nomo/shared";
+import type { ChartSpec, ChatErrorCode, ChatMessage, PendingOrderView, ToolEvent, UsageEvent } from "@nomo/shared";
 import { config } from "../config.js";
 import { recordToolCall } from "../db/auditLog.js";
 import { getCredential } from "../db/credentials.js";
 import { listInjectableMemories } from "../db/memories.js";
 import { isTierEnabled } from "../db/settings.js";
+import { getUsageTotals, recordUsage } from "../db/usage.js";
+import { estimateCostUsd, isPricedModel } from "./pricing.js";
+import type { TokenUsage } from "./pricing.js";
 import { getTool, getToolSchemas } from "../tools/registry.js";
 
 export class ChatError extends Error {
@@ -137,6 +140,23 @@ export interface ChatTurnHandlers {
   onText: (text: string) => void;
   onChart: (spec: ChartSpec) => void;
   onPendingOrder: (order: PendingOrderView) => void;
+  onTool: (event: ToolEvent) => void;
+  onUsage: (usage: UsageEvent) => void;
+}
+
+/** Records a turn's token usage, then reports it with the running total. */
+function reportUsage(handlers: ChatTurnHandlers, usage: TokenUsage): void {
+  const model = config.anthropicModel;
+  if (!isPricedModel(model) || usage.inputTokens + usage.outputTokens === 0) return;
+  const costUsd = estimateCostUsd(model, usage);
+  recordUsage({ model, ...usage, costUsd });
+  handlers.onUsage({
+    model,
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    costUsd,
+    total: getUsageTotals(),
+  });
 }
 
 /**
@@ -161,6 +181,9 @@ export async function streamChatTurn(
     content: m.content,
   }));
 
+  // Token usage accumulates across every tool-loop round of this turn.
+  const turnUsage: TokenUsage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 };
+
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     let final: Anthropic.Message;
     try {
@@ -180,14 +203,28 @@ export async function streamChatTurn(
       throw mapAnthropicError(err);
     }
 
+    turnUsage.inputTokens += final.usage.input_tokens;
+    turnUsage.outputTokens += final.usage.output_tokens;
+    turnUsage.cacheReadTokens += final.usage.cache_read_input_tokens ?? 0;
+    turnUsage.cacheCreationTokens += final.usage.cache_creation_input_tokens ?? 0;
+
     if (final.stop_reason !== "tool_use") {
+      reportUsage(handlers, turnUsage);
       return;
     }
 
     const toolUses = final.content.filter(
       (block): block is Anthropic.ToolUseBlock => block.type === "tool_use",
     );
-    const outcomes = await Promise.all(toolUses.map(executeToolUse));
+    const outcomes = await Promise.all(
+      toolUses.map(async (block) => {
+        const tier = getTool(block.name)?.tier ?? "unknown";
+        handlers.onTool({ id: block.id, name: block.name, tier, phase: "start" });
+        const outcome = await executeToolUse(block);
+        handlers.onTool({ id: block.id, name: block.name, tier, phase: "end", ok: outcome.block.is_error !== true });
+        return outcome;
+      }),
+    );
     for (const outcome of outcomes) {
       if (outcome.chart) {
         handlers.onChart(outcome.chart);
@@ -200,5 +237,6 @@ export async function streamChatTurn(
     conversation.push({ role: "user", content: outcomes.map((outcome) => outcome.block) });
   }
 
+  reportUsage(handlers, turnUsage);
   throw new ChatError("stream_error", "The tool loop exceeded its round limit.");
 }

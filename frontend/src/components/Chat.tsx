@@ -4,11 +4,14 @@ import { MAX_CHAT_MESSAGES } from "@nomo/shared";
 import {
   createConversation,
   deleteConversation,
+  fetchUsageTotals,
   getConversation,
   listConversations,
   saveConversationMessages,
 } from "../api";
 import { streamChat } from "../chatStream";
+import ActivityPanel from "./ActivityPanel";
+import type { ToolActivity } from "./ActivityPanel";
 import AssistantText from "./AssistantText";
 import ChartBlock from "./ChartBlock";
 import ChatInput from "./ChatInput";
@@ -31,6 +34,12 @@ export type MessageBlock =
 export interface UiMessage {
   role: "user" | "assistant";
   blocks: MessageBlock[];
+  /** Live tool-call activity for an assistant turn; not persisted. */
+  activity?: ToolActivity[];
+}
+
+function formatCost(usd: number): string {
+  return usd < 1 ? `$${usd.toFixed(4)}` : `$${usd.toFixed(2)}`;
 }
 
 function orderRecord(order: PendingOrderView): string {
@@ -76,7 +85,10 @@ function requestWindow(history: UiMessage[]): ChatMessage[] {
 }
 
 function hasContent(message: UiMessage): boolean {
-  return message.blocks.some((block) => block.kind !== "text" || block.text.length > 0);
+  return (
+    (message.activity?.length ?? 0) > 0 ||
+    message.blocks.some((block) => block.kind !== "text" || block.text.length > 0)
+  );
 }
 
 // An assistant message with no content means nothing arrived; dropping it
@@ -98,12 +110,19 @@ export default function Chat({ onOpenSettings }: Props) {
   const [fault, setFault] = useState<ChatFault | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
-  const [showHistory, setShowHistory] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [totalCostUsd, setTotalCostUsd] = useState<number | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const refreshList = useCallback(async () => {
     setConversations(await listConversations().catch(() => []));
+  }, []);
+
+  useEffect(() => {
+    void fetchUsageTotals()
+      .then((totals) => setTotalCostUsd(totals.costUsd))
+      .catch(() => undefined);
   }, []);
 
   // On mount, restore the most recent conversation so a reload does not lose
@@ -145,7 +164,7 @@ export default function Chat({ onOpenSettings }: Props) {
       if (!content || streaming) return;
 
       const history: UiMessage[] = [...messages, { role: "user", blocks: [{ kind: "text", text: content }] }];
-      setMessages([...history, { role: "assistant", blocks: [] }]);
+      setMessages([...history, { role: "assistant", blocks: [], activity: [] }]);
       setDraft("");
       setFault(null);
       setStreaming(true);
@@ -155,7 +174,19 @@ export default function Chat({ onOpenSettings }: Props) {
           const next = [...current];
           const last = next[next.length - 1];
           if (last && last.role === "assistant") {
-            next[next.length - 1] = { role: "assistant", blocks: append(last.blocks) };
+            next[next.length - 1] = { ...last, blocks: append(last.blocks) };
+          }
+          return next;
+        });
+      };
+
+      // Track tool calls on the streaming assistant message for the live view.
+      const updateActivity = (update: (activity: ToolActivity[]) => ToolActivity[]) => {
+        setMessages((current) => {
+          const next = [...current];
+          const last = next[next.length - 1];
+          if (last && last.role === "assistant") {
+            next[next.length - 1] = { ...last, activity: update(last.activity ?? []) };
           }
           return next;
         });
@@ -198,6 +229,16 @@ export default function Chat({ onOpenSettings }: Props) {
                 appendBlock((blocks) => [...blocks, { kind: "order", order }]);
               }
             },
+            onTool: (event) =>
+              updateActivity((activity) => {
+                if (event.phase === "start") {
+                  return [...activity, { id: event.id, name: event.name, status: "running" }];
+                }
+                return activity.map((a) =>
+                  a.id === event.id ? { ...a, status: event.ok ? "done" : "error" } : a,
+                );
+              }),
+            onUsage: (usage) => setTotalCostUsd(usage.total.costUsd),
             onDone: () => {
               dropEmptyReply(setMessages);
               setStreaming(false);
@@ -241,14 +282,12 @@ export default function Chat({ onOpenSettings }: Props) {
     setFault(null);
     setDraft("");
     setStreaming(false);
-    setShowHistory(false);
   }, []);
 
   const openConversation = useCallback(async (id: string) => {
     abortRef.current?.abort();
     setStreaming(false);
     setFault(null);
-    setShowHistory(false);
     const detail = await getConversation(id).catch(() => null);
     if (detail) {
       setMessages(detail.messages.map((m) => ({ role: m.role, blocks: m.blocks as MessageBlock[] })));
@@ -272,43 +311,75 @@ export default function Chat({ onOpenSettings }: Props) {
   const lastIndex = messages.length - 1;
 
   return (
-    <div className="chat">
-      <header className="chat-header">
-        <span className="chat-title">NOMO</span>
-        <div className="chat-header-actions">
-          <button className="link-button" onClick={() => setShowHistory((v) => !v)} disabled={conversations.length === 0}>
-            History
-          </button>
-          <button className="link-button" onClick={newChat} disabled={messages.length === 0 && !conversationId}>
-            New chat
-          </button>
-          <button className="link-button" onClick={onOpenSettings}>
-            Settings
-          </button>
-        </div>
-      </header>
-
-      {showHistory && (
-        <div className="history-panel">
-          {conversations.length === 0 && <p className="muted">No saved conversations yet.</p>}
-          {conversations.map((conversation) => (
-            <div key={conversation.id} className={`history-row ${conversation.id === conversationId ? "history-active" : ""}`}>
-              <button className="history-open" onClick={() => void openConversation(conversation.id)}>
-                {conversation.title}
-              </button>
-              <button
-                className="history-delete"
-                aria-label="Delete conversation"
-                onClick={() => void removeConversation(conversation.id)}
-              >
-                Delete
-              </button>
-            </div>
-          ))}
-        </div>
+    <div className="app-shell">
+      {sidebarOpen && (
+        <aside className="sidebar">
+          <div className="sidebar-top">
+            <button
+              className="new-chat-btn"
+              onClick={newChat}
+              disabled={messages.length === 0 && !conversationId}
+            >
+              New chat
+            </button>
+          </div>
+          <nav className="sidebar-list">
+            {conversations.length === 0 ? (
+              <p className="muted sidebar-empty">No conversations yet.</p>
+            ) : (
+              conversations.map((conversation) => (
+                <div
+                  key={conversation.id}
+                  className={`sidebar-item ${conversation.id === conversationId ? "sidebar-item-active" : ""}`}
+                >
+                  <button
+                    className="sidebar-item-title"
+                    onClick={() => void openConversation(conversation.id)}
+                    title={conversation.title}
+                  >
+                    {conversation.title}
+                  </button>
+                  <button
+                    className="sidebar-item-del"
+                    aria-label="Delete conversation"
+                    title="Delete conversation"
+                    onClick={() => void removeConversation(conversation.id)}
+                  >
+                    <CloseIcon />
+                  </button>
+                </div>
+              ))
+            )}
+          </nav>
+        </aside>
       )}
 
-      <div className="chat-messages" ref={scrollRef}>
+      <div className="chat">
+        <header className="chat-header">
+          <div className="chat-header-left">
+            <button
+              className="icon-button"
+              onClick={() => setSidebarOpen((v) => !v)}
+              aria-label={sidebarOpen ? "Hide conversations" : "Show conversations"}
+              title={sidebarOpen ? "Hide conversations" : "Show conversations"}
+            >
+              <SidebarIcon />
+            </button>
+            <span className="chat-title">NOMO</span>
+          </div>
+          <div className="chat-header-actions">
+            {totalCostUsd !== null && (
+              <span className="cost-chip" title="Estimated Anthropic API usage, all time">
+                ≈ {formatCost(totalCostUsd)}
+              </span>
+            )}
+            <button className="link-button" onClick={onOpenSettings}>
+              Settings
+            </button>
+          </div>
+        </header>
+
+        <div className="chat-messages" ref={scrollRef}>
         {messages.length === 0 && (
           <p className="muted chat-empty">
             Ask about markets or request a chart, like a 3 month daily chart of AAPL with the 20 EMA.
@@ -316,6 +387,12 @@ export default function Chat({ onOpenSettings }: Props) {
         )}
         {messages.map((message, index) => (
           <div key={index} className={`bubble bubble-${message.role}`}>
+            {message.role === "assistant" && message.activity && message.activity.length > 0 && (
+              <ActivityPanel
+                activities={message.activity}
+                active={streaming && index === lastIndex}
+              />
+            )}
             {message.blocks.map((block, blockIndex) => {
               if (block.kind === "text") {
                 return message.role === "assistant" ? (
@@ -352,6 +429,25 @@ export default function Chat({ onOpenSettings }: Props) {
         onStop={stop}
         streaming={streaming}
       />
+      </div>
     </div>
+  );
+}
+
+function SidebarIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <line x1="9" y1="4" x2="9" y2="20" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <line x1="6" y1="6" x2="18" y2="18" />
+      <line x1="18" y1="6" x2="6" y2="18" />
+    </svg>
   );
 }
