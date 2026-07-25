@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ChartSpec, ChatMessage } from "@nomo/shared";
+import type { ChartSpec, ChatMessage, PendingOrderView } from "@nomo/shared";
 import { MAX_CHAT_MESSAGES } from "@nomo/shared";
 import { streamChat } from "../chatStream";
 import ChartBlock from "./ChartBlock";
 import ChatInput from "./ChatInput";
+import OrderCard from "./OrderCard";
 
 interface Props {
   onOpenSettings: () => void;
@@ -16,24 +17,35 @@ interface ChatFault {
 
 export type MessageBlock =
   | { kind: "text"; text: string }
-  | { kind: "chart"; spec: ChartSpec };
+  | { kind: "chart"; spec: ChartSpec }
+  | { kind: "order"; order: PendingOrderView };
 
 export interface UiMessage {
   role: "user" | "assistant";
   blocks: MessageBlock[];
 }
 
+function orderRecord(order: PendingOrderView): string {
+  const price = order.limitPrice ? ` at $${order.limitPrice}` : "";
+  const result = order.result ? `. ${order.result.slice(0, 200)}` : "";
+  return `[Order record: ${order.side} ${order.quantity} ${order.ticker} ${order.orderType}${price}. Status: ${order.status}${result}]`;
+}
+
 /**
  * Flattens a UI message to the plain text the chat API accepts. Chart blocks
  * are omitted rather than replaced with placeholder text: the model never
  * authored a placeholder, and echoing one back teaches it to imitate the
- * placeholder instead of calling render_chart. The system prompt tells the
- * model that previously rendered charts are not in the transcript.
+ * placeholder instead of calling render_chart. Order blocks DO flatten into
+ * bracketed system records, because Claude must know each order's final
+ * outcome on the next turn; the system prompt marks these as app-inserted.
  */
 function toChatMessage(message: UiMessage): ChatMessage {
   const content = message.blocks
-    .filter((block): block is { kind: "text"; text: string } => block.kind === "text")
-    .map((block) => block.text)
+    .map((block) => {
+      if (block.kind === "text") return block.text;
+      if (block.kind === "order") return orderRecord(block.order);
+      return "";
+    })
     .filter((part) => part.length > 0)
     .join("\n\n");
   return { role: message.role, content };
@@ -52,7 +64,7 @@ function requestWindow(history: UiMessage[]): ChatMessage[] {
 }
 
 function hasContent(message: UiMessage): boolean {
-  return message.blocks.some((block) => block.kind === "chart" || block.text.length > 0);
+  return message.blocks.some((block) => block.kind !== "text" || block.text.length > 0);
 }
 
 // An assistant message with no content means nothing arrived; dropping it
@@ -118,6 +130,7 @@ export default function Chat({ onOpenSettings }: Props) {
               return [...blocks, { kind: "text", text: delta }];
             }),
           onChart: (spec) => appendBlock((blocks) => [...blocks, { kind: "chart", spec }]),
+          onPendingOrder: (order) => appendBlock((blocks) => [...blocks, { kind: "order", order }]),
           onDone: () => {
             dropEmptyReply(setMessages);
             setStreaming(false);
@@ -138,6 +151,19 @@ export default function Chat({ onOpenSettings }: Props) {
     abortRef.current?.abort();
     dropEmptyReply(setMessages);
     setStreaming(false);
+  }, []);
+
+  const updateOrder = useCallback((updated: PendingOrderView) => {
+    setMessages((current) =>
+      current.map((message) => ({
+        ...message,
+        blocks: message.blocks.map((block) =>
+          block.kind === "order" && block.order.id === updated.id
+            ? { kind: "order" as const, order: updated }
+            : block,
+        ),
+      })),
+    );
   }, []);
 
   const newChat = useCallback(() => {
@@ -173,13 +199,11 @@ export default function Chat({ onOpenSettings }: Props) {
         )}
         {messages.map((message, index) => (
           <div key={index} className={`bubble bubble-${message.role}`}>
-            {message.blocks.map((block, blockIndex) =>
-              block.kind === "text" ? (
-                <span key={blockIndex}>{block.text}</span>
-              ) : (
-                <ChartBlock key={blockIndex} spec={block.spec} />
-              ),
-            )}
+            {message.blocks.map((block, blockIndex) => {
+              if (block.kind === "text") return <span key={blockIndex}>{block.text}</span>;
+              if (block.kind === "chart") return <ChartBlock key={blockIndex} spec={block.spec} />;
+              return <OrderCard key={block.order.id} order={block.order} onResolved={updateOrder} />;
+            })}
             {streaming && index === lastIndex && message.role === "assistant" && (
               <span className="caret" />
             )}

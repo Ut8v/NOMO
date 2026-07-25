@@ -345,7 +345,104 @@ button.secondary {
   overflow: hidden;
 }
 
-.bubble:has(.chart-block) {
+.bubble:has(.chart-block),
+.bubble:has(.order-card) {
   max-width: 100%;
   width: 100%;
+}
+
+.order-card {
+  margin: 0.5rem 0;
+  padding: 1rem;
+  border: 1px solid #3a4152;
+  border-radius: 10px;
+  background: #12151c;
+}
+
+.order-awaiting_confirmation {
+  border-color: #6b5b1e;
+}
+
+.order-executed {
+  border-color: #2e5c48;
+}
+
+.order-failed,
+.order-rejected,
+.order-expired {
+  border-color: #5b2f31;
+}
+
+.order-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.order-card-title {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.order-status {
+  font-size: 0.85rem;
+}
+
+.order-status-awaiting_confirmation {
+  color: #e8c04a;
+}
+
+.order-status-executed {
+  color: #4fd1a5;
+}
+
+.order-status-failed,
+.order-status-rejected,
+.order-status-expired {
+  color: #f2726f;
+}
+
+.order-details {
+  margin: 0.75rem 0 0;
+}
+
+.order-details div {
+  display: flex;
+  gap: 0.6rem;
+  margin-top: 0.35rem;
+  font-size: 0.9rem;
+}
+
+.order-details dt {
+  color: #9aa3b2;
+  min-width: 7.5rem;
+}
+
+.order-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.order-result {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+}
+
+.order-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  justify-content: flex-end;
+}
+
+.order-actions button {
+  margin: 0;
+  width: auto;
+  padding: 0.5rem 1rem;
+}
+
+.order-actions button.danger {
+  background: #5b2f31;
 }
