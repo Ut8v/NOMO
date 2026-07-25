@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChartSpec, ChatMessage, PendingOrderView } from "@nomo/shared";
 import { MAX_CHAT_MESSAGES } from "@nomo/shared";
 import { streamChat } from "../chatStream";
+import AssistantText from "./AssistantText";
 import ChartBlock from "./ChartBlock";
 import ChatInput from "./ChatInput";
 import OrderCard from "./OrderCard";
@@ -210,7 +211,13 @@ export default function Chat({ onOpenSettings }: Props) {
         {messages.map((message, index) => (
           <div key={index} className={`bubble bubble-${message.role}`}>
             {message.blocks.map((block, blockIndex) => {
-              if (block.kind === "text") return <span key={blockIndex}>{block.text}</span>;
+              if (block.kind === "text") {
+                return message.role === "assistant" ? (
+                  <AssistantText key={blockIndex} text={block.text} />
+                ) : (
+                  <span key={blockIndex}>{block.text}</span>
+                );
+              }
               if (block.kind === "chart") return <ChartBlock key={blockIndex} spec={block.spec} />;
               return <OrderCard key={block.order.id} order={block.order} onResolved={updateOrder} />;
             })}
