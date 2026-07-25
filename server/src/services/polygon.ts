@@ -44,10 +44,21 @@ const QUOTE_TTL_MS = 5 * 60 * 1000;
 // free tier request budget on retries.
 const NOT_FOUND_TTL_MS = 5 * 60 * 1000;
 
+// After a 429, further requests are refused locally for a minute so
+// retries cannot keep burning the free tier request budget.
+let rateLimitedUntil = 0;
+const RATE_LIMIT_COOLDOWN_MS = 60 * 1000;
+
 async function polygonGet(path: string): Promise<unknown> {
   const apiKey = getCredential("polygon");
   if (!apiKey) {
     throw new PolygonError("missing_api_key", "No Polygon API key is stored. Run setup first.");
+  }
+  if (Date.now() < rateLimitedUntil) {
+    throw new PolygonError(
+      "rate_limited",
+      "Polygon requests are paused for a minute after hitting the free tier rate limit. Try again shortly.",
+    );
   }
 
   let res: Response;
@@ -64,6 +75,7 @@ async function polygonGet(path: string): Promise<unknown> {
     throw new PolygonError("invalid_api_key", "Polygon rejected the stored API key.");
   }
   if (res.status === 429) {
+    rateLimitedUntil = Date.now() + RATE_LIMIT_COOLDOWN_MS;
     throw new PolygonError("rate_limited", "Polygon rate limit hit (5 requests per minute on the free tier). Try again in a minute.");
   }
   if (res.status === 404) {

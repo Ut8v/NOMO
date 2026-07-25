@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { auth } from "@modelcontextprotocol/sdk/client/auth.js";
+import { auth, UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
 import type Anthropic from "@anthropic-ai/sdk";
 import type { PendingOrderView } from "@nomo/shared";
 import { config } from "../config.js";
@@ -78,8 +78,28 @@ async function ensureClient(): Promise<Client> {
   return connecting;
 }
 
+/**
+ * Maps transport failures to messages the model can safely relay. An
+ * unauthorized failure means the refresh token is dead, so the tools are
+ * unregistered, which flips settings into its Reconnect state.
+ */
+function translateConnectionError(err: unknown): Error {
+  if (err instanceof UnauthorizedError) {
+    unregisterRobinhoodTools();
+    return new Error(
+      "The Robinhood session has expired and could not be refreshed. Ask the user to open Settings and reconnect Robinhood.",
+    );
+  }
+  return new Error("Robinhood is unreachable right now. Try again shortly, or check the link in Settings.");
+}
+
 async function callRobinhoodTool(name: string, input: unknown): Promise<unknown> {
-  let mcpClient = await ensureClient();
+  let mcpClient: Client;
+  try {
+    mcpClient = await ensureClient();
+  } catch (err) {
+    throw translateConnectionError(err);
+  }
   let result;
   try {
     result = await mcpClient.callTool({ name, arguments: (input ?? {}) as Record<string, unknown> });
@@ -89,8 +109,12 @@ async function callRobinhoodTool(name: string, input: unknown): Promise<unknown>
     // is closed, not abandoned, so its transport cannot linger.
     if (client === mcpClient) client = null;
     void mcpClient.close().catch(() => undefined);
-    mcpClient = await ensureClient();
-    result = await mcpClient.callTool({ name, arguments: (input ?? {}) as Record<string, unknown> });
+    try {
+      mcpClient = await ensureClient();
+      result = await mcpClient.callTool({ name, arguments: (input ?? {}) as Record<string, unknown> });
+    } catch (retryErr) {
+      throw translateConnectionError(retryErr);
+    }
   }
   const text = textFromContent(result.content);
   if (result.isError) {

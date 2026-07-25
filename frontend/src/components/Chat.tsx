@@ -129,8 +129,18 @@ export default function Chat({ onOpenSettings }: Props) {
               }
               return [...blocks, { kind: "text", text: delta }];
             }),
-          onChart: (spec) => appendBlock((blocks) => [...blocks, { kind: "chart", spec }]),
-          onPendingOrder: (order) => appendBlock((blocks) => [...blocks, { kind: "order", order }]),
+          // Malformed payloads are dropped rather than rendered; a bad
+          // frame must not blank the whole conversation.
+          onChart: (spec) => {
+            if (spec && Array.isArray(spec.bars) && spec.bars.length > 0) {
+              appendBlock((blocks) => [...blocks, { kind: "chart", spec }]);
+            }
+          },
+          onPendingOrder: (order) => {
+            if (order && typeof order.id === "string") {
+              appendBlock((blocks) => [...blocks, { kind: "order", order }]);
+            }
+          },
           onDone: () => {
             dropEmptyReply(setMessages);
             setStreaming(false);
