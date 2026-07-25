@@ -1,6 +1,7 @@
 import { createMemory } from "../db/memories.js";
 import { insertOutcome, listOutcomes } from "../db/outcomes.js";
 import { getPendingOrder } from "../db/pendingOrders.js";
+import { searchMessages } from "../db/search.js";
 import { distillLessons } from "../services/distill.js";
 import { computePerformance, extractTags } from "../services/performance.js";
 import { registerTool } from "./registry.js";
@@ -115,4 +116,27 @@ export function registerLearningTools(): void {
       return { forModel: { tradesRecorded: outcomes.length, ...report } };
     },
   });
+
+  registerTool({
+    name: "search_history",
+    tier: "market_data",
+    description:
+      "Search past conversations by keyword to recall what was discussed earlier. Returns matching conversations with a snippet. Use it when the user refers to something from a previous session.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Keywords to search for across past chats" },
+      },
+      required: ["query"],
+    },
+    execute: async (input): Promise<ToolExecutionResult> => {
+      const query = typeof (input as { query?: unknown }).query === "string"
+        ? (input as { query: string }).query
+        : "";
+      if (!query.trim()) throw new Error("query is required.");
+      const hits = searchMessages(query, 10);
+      return { forModel: { matches: hits, count: hits.length } };
+    },
+  });
 }
+

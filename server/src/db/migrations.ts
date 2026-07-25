@@ -157,6 +157,19 @@ const migrations: Migration[] = [
       );
     `,
   },
+  {
+    id: 8,
+    name: "messages-fts",
+    // Full text index over message text for the search_history tool. Kept in
+    // sync by the conversation write path; backfilled once at startup.
+    sql: `
+      CREATE VIRTUAL TABLE messages_fts USING fts5(
+        text,
+        conversation_id UNINDEXED,
+        tokenize = 'porter'
+      );
+    `,
+  },
 ];
 
 export function runMigrations(db: Database): void {

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { ConversationDetail, ConversationSummary, StoredMessage } from "@nomo/shared";
 import { getDb } from "./index.js";
+import { indexConversation, removeConversationFromIndex } from "./search.js";
 
 const MAX_TITLE_LENGTH = 80;
 
@@ -65,10 +66,13 @@ export function replaceMessages(id: string, messages: StoredMessage[]): boolean 
     db.prepare(
       "UPDATE conversations SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
     ).run(id);
+    indexConversation(id, messages);
   })();
   return true;
 }
 
 export function deleteConversation(id: string): boolean {
-  return getDb().prepare("DELETE FROM conversations WHERE id = ?").run(id).changes > 0;
+  const removed = getDb().prepare("DELETE FROM conversations WHERE id = ?").run(id).changes > 0;
+  if (removed) removeConversationFromIndex(id);
+  return removed;
 }
