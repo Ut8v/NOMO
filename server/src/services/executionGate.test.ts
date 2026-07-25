@@ -55,6 +55,7 @@ function backdateExpiry(orderId: string): void {
 test("propose creates an awaiting order and does not touch the broker", () => {
   const { forModel, order } = propose();
   assert.equal(order.status, "awaiting_confirmation");
+  assert.equal(order.action, "place");
   assert.equal(order.ticker, "AAPL");
   assert.equal(order.quantity, "1");
   assert.ok(new Date(order.expiresAt).getTime() > Date.now());
@@ -141,13 +142,13 @@ test("unknown order ids are not found", async () => {
   assert.equal(confirm.code, "not_found");
 });
 
-test("placeConfirmedOrder refuses any order not in confirmed status", async () => {
+test("executeConfirmedOrder refuses any order not in confirmed status", async () => {
   const { order } = propose();
   const placedBefore = mock.placedOrders.length;
-  await assert.rejects(() => robinhoodMcp.placeConfirmedOrder(order), /not confirmed/);
+  await assert.rejects(() => robinhoodMcp.executeConfirmedOrder(order), /not confirmed/);
   for (const status of ["rejected", "expired", "executed", "failed"] as const) {
     await assert.rejects(
-      () => robinhoodMcp.placeConfirmedOrder({ ...order, status }),
+      () => robinhoodMcp.executeConfirmedOrder({ ...order, status }),
       /not confirmed/,
     );
   }
@@ -162,4 +163,58 @@ test("audit log records the full lifecycle", async () => {
     .prepare("SELECT outcome FROM audit_log WHERE tool_name = 'place_equity_order' ORDER BY id DESC LIMIT 1")
     .all() as { outcome: string }[];
   assert.equal(rows[0]?.outcome, "executed");
+});
+
+test("cancel proposals validate their input", () => {
+  assert.throws(() => gate.proposeCancel({ ticker: "AAPL", rationale: "x" }), /order_id/);
+  assert.throws(() => gate.proposeCancel({ order_id: "R1", rationale: "x" }), /ticker/);
+  assert.throws(() => gate.proposeCancel({ order_id: "R1", ticker: "AAPL" }), /rationale/);
+});
+
+test("confirming a cancel calls cancel_equity_order with the stored broker ref and never places", async () => {
+  const placedBefore = mock.placedOrders.length;
+  const { order } = gate.proposeCancel({ order_id: "RH-OPEN-1", ticker: "AAPL", rationale: "no longer needed" });
+  assert.equal(order.action, "cancel");
+  assert.equal(order.brokerRef, "RH-OPEN-1");
+  assert.equal(order.side, null);
+  assert.equal(order.status, "awaiting_confirmation");
+
+  const cancelBefore = mock.cancelledOrders.length;
+  const result = await gate.confirmOrder(order.id);
+  assert.equal(result.ok, true);
+  assert.equal(result.order?.status, "executed");
+  assert.match(result.order?.result ?? "", /cancelled/);
+  assert.equal(mock.cancelledOrders.length, cancelBefore + 1);
+  assert.deepEqual(mock.cancelledOrders[mock.cancelledOrders.length - 1], { order_id: "RH-OPEN-1" });
+  assert.equal(mock.placedOrders.length, placedBefore);
+});
+
+test("when the MCP offers a review tool, a place is reviewed before being placed", async () => {
+  // Discovering the live tools enables the optional review step.
+  await robinhoodMcp.connectAndRegisterTools();
+  const reviewBefore = mock.reviewedOrders.length;
+  const placedBefore = mock.placedOrders.length;
+
+  const { order } = propose({ ticker: "GOOG" });
+  const result = await gate.confirmOrder(order.id);
+
+  assert.equal(result.order?.status, "executed");
+  assert.equal(mock.reviewedOrders.length, reviewBefore + 1);
+  assert.equal(mock.placedOrders.length, placedBefore + 1);
+  assert.match(result.order?.result ?? "", /Reviewed before placing/);
+});
+
+test("a failed review aborts the placement so nothing reaches the broker", async () => {
+  mock.reviewShouldFail = true;
+  const placedBefore = mock.placedOrders.length;
+
+  const { order } = propose({ ticker: "META" });
+  const result = await gate.confirmOrder(order.id);
+
+  assert.equal(result.order?.status, "failed");
+  assert.match(result.order?.result ?? "", /insufficient buying power/);
+  assert.equal(mock.placedOrders.length, placedBefore);
+
+  mock.reviewShouldFail = false;
+  robinhoodMcp.unregisterRobinhoodTools();
 });

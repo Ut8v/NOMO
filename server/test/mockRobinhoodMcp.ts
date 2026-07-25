@@ -12,6 +12,12 @@ export interface MockRobinhood {
   url: string;
   /** Arguments of every place_equity_order call, in order. */
   placedOrders: Record<string, unknown>[];
+  /** Arguments of every cancel_equity_order call, in order. */
+  cancelledOrders: Record<string, unknown>[];
+  /** Arguments of every review_equity_order call, in order. */
+  reviewedOrders: Record<string, unknown>[];
+  /** When true, review_equity_order returns an error so placement aborts. */
+  reviewShouldFail: boolean;
   close: () => Promise<void>;
 }
 
@@ -61,6 +67,9 @@ const READ_TOOLS: { name: string; description: string; inputSchema: Record<strin
 
 export async function startMockRobinhood(port: number): Promise<MockRobinhood> {
   const placedOrders: Record<string, unknown>[] = [];
+  const cancelledOrders: Record<string, unknown>[] = [];
+  const reviewedOrders: Record<string, unknown>[] = [];
+  const state = { reviewShouldFail: false };
 
   function buildServer(): Server {
     const server = new Server({ name: "mock-robinhood-trading", version: "0.0.1" }, { capabilities: { tools: {} } });
@@ -82,11 +91,49 @@ export async function startMockRobinhood(port: number): Promise<MockRobinhood> {
             required: ["symbol", "side", "quantity", "order_type"],
           },
         },
+        {
+          name: "review_equity_order",
+          description: "Preview an equity order before placing it",
+          inputSchema: {
+            type: "object",
+            properties: {
+              symbol: { type: "string" },
+              side: { type: "string", enum: ["buy", "sell"] },
+              quantity: { type: "string" },
+              order_type: { type: "string", enum: ["market", "limit"] },
+            },
+            required: ["symbol", "side", "quantity", "order_type"],
+          },
+        },
+        {
+          name: "cancel_equity_order",
+          description: "Cancel an existing equity order in the agentic account",
+          inputSchema: {
+            type: "object",
+            properties: { order_id: { type: "string" } },
+            required: ["order_id"],
+          },
+        },
       ],
     }));
     server.setRequestHandler(CallToolRequestSchema, async (request) => {
+      const args = (request.params.arguments ?? {}) as Record<string, unknown>;
+      if (request.params.name === "review_equity_order") {
+        reviewedOrders.push(args);
+        if (state.reviewShouldFail) {
+          return { content: [{ type: "text", text: "insufficient buying power" }], isError: true };
+        }
+        return {
+          content: [{ type: "text", text: JSON.stringify({ estimated_cost: "236.35", buying_power_ok: true }) }],
+        };
+      }
+      if (request.params.name === "cancel_equity_order") {
+        cancelledOrders.push(args);
+        return {
+          content: [{ type: "text", text: JSON.stringify({ order_id: args.order_id, state: "cancelled" }) }],
+        };
+      }
       if (request.params.name === "place_equity_order") {
-        const args = (request.params.arguments ?? {}) as Record<string, unknown>;
         placedOrders.push(args);
         return {
           content: [
@@ -133,6 +180,14 @@ export async function startMockRobinhood(port: number): Promise<MockRobinhood> {
   return {
     url: `http://127.0.0.1:${port}/mcp/trading`,
     placedOrders,
+    cancelledOrders,
+    reviewedOrders,
+    get reviewShouldFail() {
+      return state.reviewShouldFail;
+    },
+    set reviewShouldFail(value: boolean) {
+      state.reviewShouldFail = value;
+    },
     close: () =>
       new Promise((resolve, reject) => {
         httpServer.close((err) => (err ? reject(err) : resolve()));

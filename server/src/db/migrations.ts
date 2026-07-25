@@ -59,6 +59,64 @@ const migrations: Migration[] = [
       ALTER TABLE pending_orders ADD COLUMN result TEXT;
     `,
   },
+  {
+    id: 3,
+    name: "conversations",
+    sql: `
+      CREATE TABLE conversations (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      );
+
+      CREATE TABLE messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+        seq INTEGER NOT NULL,
+        role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+        blocks TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      );
+
+      CREATE INDEX idx_messages_conversation ON messages (conversation_id, seq);
+    `,
+  },
+  {
+    id: 4,
+    name: "pending-order-actions",
+    // Rebuild pending_orders so cancel proposals fit: an action column, an
+    // optional broker order reference, and nullable place-only fields. No
+    // table references pending_orders, so the rebuild is safe.
+    sql: `
+      CREATE TABLE pending_orders_new (
+        id TEXT PRIMARY KEY,
+        action TEXT NOT NULL DEFAULT 'place' CHECK (action IN ('place', 'cancel')),
+        ticker TEXT NOT NULL,
+        side TEXT CHECK (side IN ('buy', 'sell')),
+        quantity TEXT,
+        order_type TEXT,
+        limit_price TEXT,
+        broker_ref TEXT,
+        rationale TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'awaiting_confirmation'
+          CHECK (status IN ('awaiting_confirmation', 'confirmed', 'rejected', 'expired', 'executed', 'failed')),
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        expires_at TEXT NOT NULL,
+        resolved_at TEXT,
+        result TEXT
+      );
+
+      INSERT INTO pending_orders_new
+        (id, action, ticker, side, quantity, order_type, limit_price, broker_ref, rationale, status, created_at, expires_at, resolved_at, result)
+      SELECT
+        id, 'place', ticker, side, quantity, order_type, limit_price, NULL, rationale, status, created_at, expires_at, resolved_at, result
+      FROM pending_orders;
+
+      DROP TABLE pending_orders;
+      ALTER TABLE pending_orders_new RENAME TO pending_orders;
+    `,
+  },
 ];
 
 export function runMigrations(db: Database): void {

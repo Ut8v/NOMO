@@ -11,9 +11,10 @@ import { RobinhoodOAuthProvider } from "./robinhoodAuth.js";
 
 /**
  * Read-only allowlist. Only tools named here AND present in the live
- * tools/list response are registered, always at the portfolio_read tier.
- * Execution tools (review, place, cancel) are deliberately absent and must
- * not be added in this phase.
+ * tools/list response are registered as model tools, always at the
+ * portfolio_read tier. Execution tools (review, place, cancel) are never
+ * registered as model tools; they are reachable only through the
+ * confirmation gate via executeConfirmedOrder.
  */
 const READ_TOOL_ALLOWLIST = new Set([
   "get_accounts",
@@ -30,6 +31,9 @@ export const oauthProvider = new RobinhoodOAuthProvider();
 let client: Client | null = null;
 let connecting: Promise<Client> | null = null;
 let registeredToolNames: string[] = [];
+// Every tool the live MCP exposed at connect time, used to decide whether an
+// optional review step is available before placing an order.
+let availableToolNames = new Set<string>();
 // Incremented by unlink so results from a connect that was in flight when
 // the user unlinked are discarded instead of resurrecting the session.
 let generation = 0;
@@ -144,7 +148,10 @@ export async function connectAndRegisterTools(): Promise<string[]> {
   );
   console.log(`Full schemas recorded at ${snapshotPath}`);
 
+  // Clear the prior registration first, then record what this connect saw;
+  // unregisterRobinhoodTools also resets the available-tools set.
   unregisterRobinhoodTools();
+  availableToolNames = new Set(discovered.tools.map((tool) => tool.name));
   for (const tool of discovered.tools) {
     if (!READ_TOOL_ALLOWLIST.has(tool.name)) continue;
     registerTool({
@@ -160,18 +167,34 @@ export async function connectAndRegisterTools(): Promise<string[]> {
   return registeredToolNames;
 }
 
+function stringifyAck(ack: unknown): string {
+  return typeof ack === "string" ? ack : JSON.stringify(ack);
+}
+
 /**
  * THE ONLY PATH to a Robinhood execution tool. It accepts nothing but a
  * stored pending order in confirmed status; parameters are taken from that
  * row and never from model output. Do not add another caller besides the
  * confirmation gate, and do not add a bypass.
+ *
+ * Argument names (symbol, side, order_type, order_id) are provisional until
+ * validated against a real Robinhood link; a mismatch fails loudly on the
+ * confirmation card rather than placing anything wrong.
  */
-export async function placeConfirmedOrder(order: PendingOrderView): Promise<string> {
+export async function executeConfirmedOrder(order: PendingOrderView): Promise<string> {
   if (order.status !== "confirmed") {
     throw new Error(
-      `Refusing to place order ${order.id}: status is ${order.status}, not confirmed.`,
+      `Refusing to execute order ${order.id}: status is ${order.status}, not confirmed.`,
     );
   }
+
+  if (order.action === "cancel") {
+    if (!order.brokerRef) {
+      throw new Error(`Cancel order ${order.id} has no broker order reference.`);
+    }
+    return stringifyAck(await callRobinhoodTool("cancel_equity_order", { order_id: order.brokerRef }));
+  }
+
   const args: Record<string, unknown> = {
     symbol: order.ticker,
     side: order.side,
@@ -181,8 +204,18 @@ export async function placeConfirmedOrder(order: PendingOrderView): Promise<stri
   if (order.orderType === "limit" && order.limitPrice !== null) {
     args.limit_price = order.limitPrice;
   }
-  const ack = await callRobinhoodTool("place_equity_order", args);
-  return typeof ack === "string" ? ack : JSON.stringify(ack);
+
+  // If the live MCP exposes a review tool, preview the order first. A review
+  // failure aborts placement (the error surfaces on the card), so nothing is
+  // sent that the broker flagged during review.
+  let reviewNote = "";
+  if (availableToolNames.has("review_equity_order")) {
+    const review = await callRobinhoodTool("review_equity_order", args);
+    reviewNote = ` Reviewed before placing: ${stringifyAck(review)}`;
+  }
+
+  const ack = stringifyAck(await callRobinhoodTool("place_equity_order", args));
+  return `${ack}${reviewNote}`;
 }
 
 export function unregisterRobinhoodTools(): void {
@@ -190,6 +223,7 @@ export function unregisterRobinhoodTools(): void {
     unregisterTool(name);
   }
   registeredToolNames = [];
+  availableToolNames = new Set();
 }
 
 /**

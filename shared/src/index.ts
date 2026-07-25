@@ -28,7 +28,14 @@ export type {
 export type {
   OrderSide,
   OrderType,
+  OrderAction,
   PendingOrderStatus,
   PendingOrderView,
   OrderActionResponse,
 } from "./orders.js";
+
+export type {
+  ConversationSummary,
+  ConversationDetail,
+  StoredMessage,
+} from "./conversations.js";

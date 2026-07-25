@@ -9,13 +9,14 @@ import {
   markOrderFailed,
   rejectPendingOrder,
 } from "../db/pendingOrders.js";
-import { placeConfirmedOrder } from "./robinhoodMcp.js";
+import { executeConfirmedOrder } from "./robinhoodMcp.js";
 
 /**
- * The confirmation gate. Claude's execution tool calls land in proposeOrder,
- * which only writes a pending_orders row; the broker is reached exclusively
- * through confirmOrder, after the user clicked Confirm and the row made the
- * atomic awaiting_confirmation to confirmed transition before its expiry.
+ * The confirmation gate. Claude's execution tool calls land in proposeOrder
+ * or proposeCancel, which only write a pending_orders row; the broker is
+ * reached exclusively through confirmOrder, after the user clicked Confirm
+ * and the row made the atomic awaiting_confirmation to confirmed transition
+ * before its expiry.
  */
 
 const TICKER_PATTERN = /^[A-Z][A-Z0-9.\-]{0,9}$/;
@@ -31,13 +32,25 @@ interface ParsedProposal {
   rationale: string;
 }
 
-function parseProposal(input: unknown): ParsedProposal {
-  const raw = (input ?? {}) as Record<string, unknown>;
-
-  const ticker = typeof raw.ticker === "string" ? raw.ticker.trim().toUpperCase() : "";
+function normalizeTicker(raw: unknown): string {
+  const ticker = typeof raw === "string" ? raw.trim().toUpperCase() : "";
   if (!TICKER_PATTERN.test(ticker)) {
     throw new Error("ticker must be a stock symbol like AAPL.");
   }
+  return ticker;
+}
+
+function normalizeRationale(raw: unknown): string {
+  const rationale = typeof raw === "string" ? raw.trim() : "";
+  if (!rationale) {
+    throw new Error("rationale is required: state briefly why this action is proposed.");
+  }
+  return rationale.slice(0, MAX_RATIONALE_LENGTH);
+}
+
+function parseProposal(input: unknown): ParsedProposal {
+  const raw = (input ?? {}) as Record<string, unknown>;
+  const ticker = normalizeTicker(raw.ticker);
 
   if (raw.side !== "buy" && raw.side !== "sell") {
     throw new Error("side must be buy or sell.");
@@ -61,18 +74,25 @@ function parseProposal(input: unknown): ParsedProposal {
     limitPrice = String(price);
   }
 
-  const rationale = typeof raw.rationale === "string" ? raw.rationale.trim() : "";
-  if (!rationale) {
-    throw new Error("rationale is required: state briefly why this trade is proposed.");
-  }
-
   return {
     ticker,
     side: raw.side,
     quantity: String(quantity),
     orderType: raw.order_type,
     limitPrice,
-    rationale: rationale.slice(0, MAX_RATIONALE_LENGTH),
+    rationale: normalizeRationale(raw.rationale),
+  };
+}
+
+function pendingResult(order: PendingOrderView, note: string) {
+  return {
+    forModel: {
+      status: "awaiting_confirmation",
+      orderId: order.id,
+      expiresAt: order.expiresAt,
+      note,
+    },
+    order,
   };
 }
 
@@ -80,16 +100,43 @@ export function proposeOrder(input: unknown): { forModel: unknown; order: Pendin
   expireStaleOrders();
   const parsed = parseProposal(input);
   // The tool dispatcher writes the audit row for the proposal itself.
-  const order = createPendingOrder(parsed);
-  return {
-    forModel: {
-      status: "awaiting_confirmation",
-      orderId: order.id,
-      expiresAt: order.expiresAt,
-      note: "The order was NOT placed. The user must confirm it in the app within 5 minutes. Never state that it executed unless a later system record says so.",
-    },
+  const order = createPendingOrder({
+    action: "place",
+    ticker: parsed.ticker,
+    side: parsed.side,
+    quantity: parsed.quantity,
+    orderType: parsed.orderType,
+    limitPrice: parsed.limitPrice,
+    brokerRef: null,
+    rationale: parsed.rationale,
+  });
+  return pendingResult(
     order,
-  };
+    "The order was NOT placed. The user must confirm it in the app within 5 minutes. Never state that it executed unless a later system record says so.",
+  );
+}
+
+export function proposeCancel(input: unknown): { forModel: unknown; order: PendingOrderView } {
+  expireStaleOrders();
+  const raw = (input ?? {}) as Record<string, unknown>;
+  const brokerRef = typeof raw.order_id === "string" ? raw.order_id.trim() : "";
+  if (!brokerRef) {
+    throw new Error("order_id is required: the broker order id to cancel, from get_equity_orders.");
+  }
+  const order = createPendingOrder({
+    action: "cancel",
+    ticker: normalizeTicker(raw.ticker),
+    side: null,
+    quantity: null,
+    orderType: null,
+    limitPrice: null,
+    brokerRef,
+    rationale: normalizeRationale(raw.rationale),
+  });
+  return pendingResult(
+    order,
+    "The cancellation was NOT sent. The user must confirm it in the app within 5 minutes. Never state that it was cancelled unless a later system record says so.",
+  );
 }
 
 export type GateActionCode = "not_found" | "conflict";
@@ -113,21 +160,21 @@ export async function confirmOrder(id: string): Promise<GateActionResult> {
 
   const confirmed = getPendingOrder(id)!;
   try {
-    const ack = await placeConfirmedOrder(confirmed);
+    const ack = await executeConfirmedOrder(confirmed);
     markOrderExecuted(id, ack);
     recordToolCall({
-      toolName: "place_equity_order",
+      toolName: confirmed.action === "cancel" ? "cancel_equity_order" : "place_equity_order",
       tier: "execution",
-      params: { orderId: id, ticker: confirmed.ticker, side: confirmed.side, quantity: confirmed.quantity, orderType: confirmed.orderType, limitPrice: confirmed.limitPrice },
+      params: { orderId: id, action: confirmed.action, ticker: confirmed.ticker, brokerRef: confirmed.brokerRef, side: confirmed.side, quantity: confirmed.quantity, orderType: confirmed.orderType, limitPrice: confirmed.limitPrice },
       outcome: "executed",
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Order placement failed.";
     markOrderFailed(id, message);
     recordToolCall({
-      toolName: "place_equity_order",
+      toolName: confirmed.action === "cancel" ? "cancel_equity_order" : "place_equity_order",
       tier: "execution",
-      params: { orderId: id },
+      params: { orderId: id, action: confirmed.action },
       outcome: `error: ${message}`,
     });
   }
@@ -144,9 +191,9 @@ export function rejectOrder(id: string): GateActionResult {
     return { ok: false, code: "conflict", order: getPendingOrder(id) };
   }
   recordToolCall({
-    toolName: "place_equity_order",
+    toolName: existing.action === "cancel" ? "cancel_equity_order" : "place_equity_order",
     tier: "execution",
-    params: { orderId: id },
+    params: { orderId: id, action: existing.action },
     outcome: "rejected by user",
   });
   return { ok: true, order: getPendingOrder(id)! };

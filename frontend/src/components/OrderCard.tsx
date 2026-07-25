@@ -54,7 +54,9 @@ export default function OrderCard({ order, onResolved }: Props) {
     <div className={`order-card order-${displayStatus}`}>
       <div className="order-card-header">
         <span className="order-card-title">
-          {order.side.toUpperCase()} {order.quantity} {order.ticker}
+          {order.action === "cancel"
+            ? `Cancel order ${order.brokerRef ?? ""}`.trim()
+            : `${order.side?.toUpperCase() ?? ""} ${order.quantity ?? ""} ${order.ticker}`.trim()}
         </span>
         <span className={`order-status order-status-${displayStatus}`}>
           {STATUS_LABELS[displayStatus] ?? displayStatus}
@@ -63,8 +65,12 @@ export default function OrderCard({ order, onResolved }: Props) {
 
       <dl className="order-details">
         <div>
-          <dt>Order type</dt>
-          <dd>{order.orderType}{order.limitPrice ? ` at $${order.limitPrice}` : ""}</dd>
+          <dt>{order.action === "cancel" ? "Target order" : "Order type"}</dt>
+          <dd>
+            {order.action === "cancel"
+              ? `${order.ticker} order ${order.brokerRef ?? ""}`.trim()
+              : `${order.orderType ?? ""}${order.limitPrice ? ` at $${order.limitPrice}` : ""}`}
+          </dd>
         </div>
         <div>
           <dt>Rationale</dt>
@@ -85,7 +91,7 @@ export default function OrderCard({ order, onResolved }: Props) {
             Reject
           </button>
           <button onClick={() => void act(confirmOrder)} disabled={busy}>
-            {busy ? "Working..." : "Confirm order"}
+            {busy ? "Working..." : order.action === "cancel" ? "Confirm cancellation" : "Confirm order"}
           </button>
         </div>
       )}

@@ -1,4 +1,4 @@
-import { proposeOrder } from "../services/executionGate.js";
+import { proposeCancel, proposeOrder } from "../services/executionGate.js";
 import { registerTool } from "./registry.js";
 import type { ToolExecutionResult } from "./registry.js";
 
@@ -27,6 +27,26 @@ export function registerExecutionTools(): void {
     },
     execute: async (input): Promise<ToolExecutionResult> => {
       const { forModel, order } = proposeOrder(input);
+      return { forModel, pendingOrder: order };
+    },
+  });
+
+  registerTool({
+    name: "cancel_equity_order",
+    tier: "execution",
+    description:
+      "Propose cancelling an existing equity order. This does NOT cancel it: it creates a proposal the user must explicitly confirm in the app within 5 minutes. Look up the broker order id first with get_equity_orders. Always give a short rationale.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        order_id: { type: "string", description: "Broker order id to cancel, from get_equity_orders" },
+        ticker: { type: "string", description: "Symbol of that order, for display, e.g. AAPL" },
+        rationale: { type: "string", description: "Why this cancellation is proposed" },
+      },
+      required: ["order_id", "ticker", "rationale"],
+    },
+    execute: async (input): Promise<ToolExecutionResult> => {
+      const { forModel, order } = proposeCancel(input);
       return { forModel, pendingOrder: order };
     },
   });

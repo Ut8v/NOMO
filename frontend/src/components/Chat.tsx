@@ -27,9 +27,12 @@ export interface UiMessage {
 }
 
 function orderRecord(order: PendingOrderView): string {
-  const price = order.limitPrice ? ` at $${order.limitPrice}` : "";
   const result = order.result ? `. ${order.result.slice(0, 200)}` : "";
-  return `[Order record: ${order.side} ${order.quantity} ${order.ticker} ${order.orderType}${price}. Status: ${order.status}${result}]`;
+  const subject =
+    order.action === "cancel"
+      ? `cancel ${order.ticker} order ${order.brokerRef ?? ""}`.trim()
+      : `${order.side} ${order.quantity} ${order.ticker} ${order.orderType}${order.limitPrice ? ` at $${order.limitPrice}` : ""}`;
+  return `[Order record: ${subject}. Status: ${order.status}${result}]`;
 }
 
 /**
