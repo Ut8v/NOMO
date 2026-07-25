@@ -66,7 +66,7 @@ export function registerLearningTools(): void {
     name: "record_outcome",
     tier: "market_data",
     description:
-      "Record the realized profit or loss of a closed position from a previously confirmed order, so the track record can be reviewed later. Read the realized P/L from the Robinhood order or position tools; do not estimate it. Tags are taken from the original order's rationale.",
+      "Record the realized profit or loss of a closed position from a previously confirmed order, so the track record can be reviewed later. Get the realized P/L from get_pnl_trade_history or get_realized_pnl (the authoritative Robinhood figures); never estimate it. Tags are taken from the original order's rationale.",
     inputSchema: {
       type: "object",
       properties: {
