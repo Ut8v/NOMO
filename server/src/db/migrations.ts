@@ -134,6 +134,13 @@ const migrations: Migration[] = [
       );
     `,
   },
+  {
+    id: 6,
+    name: "pending-order-reject-reason",
+    sql: `
+      ALTER TABLE pending_orders ADD COLUMN reject_reason TEXT;
+    `,
+  },
 ];
 
 export function runMigrations(db: Database): void {

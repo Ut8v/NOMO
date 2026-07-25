@@ -34,6 +34,8 @@ export interface PendingOrderView {
   expiresAt: string;
   /** Broker acknowledgment or error detail once resolved. */
   result: string | null;
+  /** Optional one-line reason the user gave when rejecting. */
+  rejectReason: string | null;
 }
 
 export interface OrderActionResponse {

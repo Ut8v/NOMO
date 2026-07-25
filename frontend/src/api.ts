@@ -1,6 +1,7 @@
 import type {
   ConversationDetail,
   ConversationSummary,
+  MemoryView,
   PendingOrderView,
   SetupStatus,
   SaveKeysRequest,
@@ -67,12 +68,20 @@ export async function confirmOrder(id: string): Promise<{ order: PendingOrderVie
   return orderAction(id, "confirm");
 }
 
-export async function rejectOrder(id: string): Promise<{ order: PendingOrderView }> {
-  return orderAction(id, "reject");
+export async function rejectOrder(id: string, reason?: string): Promise<{ order: PendingOrderView }> {
+  return orderAction(id, "reject", reason ? { reason } : undefined);
 }
 
-async function orderAction(id: string, action: "confirm" | "reject"): Promise<{ order: PendingOrderView }> {
-  const res = await fetch(`/api/orders/${encodeURIComponent(id)}/${action}`, { method: "POST" });
+async function orderAction(
+  id: string,
+  action: "confirm" | "reject",
+  payload?: Record<string, unknown>,
+): Promise<{ order: PendingOrderView }> {
+  const res = await fetch(`/api/orders/${encodeURIComponent(id)}/${action}`, {
+    method: "POST",
+    headers: payload ? { "Content-Type": "application/json" } : undefined,
+    body: payload ? JSON.stringify(payload) : undefined,
+  });
   const body = (await res.json().catch(() => null)) as { order?: PendingOrderView; error?: string } | null;
   // Conflict responses still carry the order's current state, e.g. expired,
   // so the card can render the truth instead of a bare error.
@@ -130,4 +139,35 @@ export async function saveConversationMessages(id: string, messages: StoredMessa
 export async function deleteConversation(id: string): Promise<void> {
   const res = await fetch(`/api/conversations/${encodeURIComponent(id)}`, { method: "DELETE" });
   if (!res.ok) throw new Error(`Failed to delete conversation (${res.status})`);
+}
+
+export async function listMemories(): Promise<MemoryView[]> {
+  const res = await fetch("/api/memories");
+  if (!res.ok) throw new Error(`Failed to load memories (${res.status})`);
+  return (await res.json()).memories as MemoryView[];
+}
+
+export async function updateMemory(
+  id: string,
+  patch: { content?: string; status?: "approved" | "pending"; active?: boolean },
+): Promise<MemoryView> {
+  const res = await fetch(`/api/memories/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw new Error(`Failed to update memory (${res.status})`);
+  return (await res.json()).memory as MemoryView;
+}
+
+export async function deleteMemory(id: string): Promise<void> {
+  const res = await fetch(`/api/memories/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`Failed to delete memory (${res.status})`);
+}
+
+export async function distillLessons(): Promise<{ created: number; note: string }> {
+  const res = await fetch("/api/memories/distill", { method: "POST" });
+  const body = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(body?.error ?? `Distillation failed (${res.status})`);
+  return body;
 }

@@ -28,7 +28,10 @@ ordersRouter.post("/:id/confirm", async (req, res) => {
 });
 
 ordersRouter.post("/:id/reject", (req, res) => {
-  const result = rejectOrder(req.params.id);
+  const reason = typeof (req.body as { reason?: unknown } | undefined)?.reason === "string"
+    ? (req.body as { reason: string }).reason
+    : undefined;
+  const result = rejectOrder(req.params.id, reason);
   if (!result.ok) {
     const status = result.code === "not_found" ? 404 : 409;
     res.status(status).json({ error: "The order cannot be rejected.", order: result.order });

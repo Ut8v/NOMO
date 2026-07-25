@@ -25,6 +25,7 @@ interface PendingOrderRow {
   expires_at: string;
   resolved_at: string | null;
   result: string | null;
+  reject_reason: string | null;
 }
 
 function toView(row: PendingOrderRow): PendingOrderView {
@@ -42,6 +43,7 @@ function toView(row: PendingOrderRow): PendingOrderView {
     createdAt: row.created_at,
     expiresAt: row.expires_at,
     result: row.result,
+    rejectReason: row.reject_reason,
   };
 }
 
@@ -115,8 +117,25 @@ export function confirmPendingOrder(id: string): boolean {
   return transition(id, "awaiting_confirmation", "confirmed", { requireUnexpired: true });
 }
 
-export function rejectPendingOrder(id: string): boolean {
-  return transition(id, "awaiting_confirmation", "rejected");
+export function rejectPendingOrder(id: string, reason?: string | null): boolean {
+  const rejected = transition(id, "awaiting_confirmation", "rejected");
+  if (rejected && reason) {
+    getDb().prepare("UPDATE pending_orders SET reject_reason = ? WHERE id = ?").run(reason, id);
+  }
+  return rejected;
+}
+
+/** Confirmed and executed orders with the veto reasons on the rejected ones. */
+export function listResolvedOrders(limit = 100): PendingOrderView[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT * FROM pending_orders
+       WHERE status IN ('executed', 'rejected', 'confirmed', 'failed')
+       ORDER BY resolved_at DESC, rowid DESC
+       LIMIT ?`,
+    )
+    .all(limit) as PendingOrderRow[];
+  return rows.map(toView);
 }
 
 export function markOrderExecuted(id: string, result: string): boolean {

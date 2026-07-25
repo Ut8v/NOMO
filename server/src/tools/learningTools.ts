@@ -1,4 +1,5 @@
 import { createMemory } from "../db/memories.js";
+import { distillLessons } from "../services/distill.js";
 import { registerTool } from "./registry.js";
 import type { ToolExecutionResult } from "./registry.js";
 
@@ -42,6 +43,18 @@ export function registerLearningTools(): void {
           note: "Saved as a background fact. The user can edit or remove it in settings.",
         },
       };
+    },
+  });
+
+  registerTool({
+    name: "distill_lessons",
+    tier: "market_data",
+    description:
+      "Review the user's recent confirm and reject history, including their rejection reasons, and propose durable lessons about their preferences. Candidates are written to a review list in settings and are never used until the user approves them. Invoke when the user asks you to learn from their past decisions.",
+    inputSchema: { type: "object", properties: {} },
+    execute: async (): Promise<ToolExecutionResult> => {
+      const result = await distillLessons();
+      return { forModel: result };
     },
   });
 }

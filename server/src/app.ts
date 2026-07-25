@@ -6,6 +6,7 @@ import { robinhoodRouter } from "./routes/robinhood.js";
 import { settingsRouter } from "./routes/settings.js";
 import { ordersRouter } from "./routes/orders.js";
 import { conversationsRouter } from "./routes/conversations.js";
+import { memoriesRouter } from "./routes/memories.js";
 
 export function createApp(): Express {
   const app = express();
@@ -21,6 +22,7 @@ export function createApp(): Express {
   app.use("/api/settings", settingsRouter);
   app.use("/api/orders", ordersRouter);
   app.use("/api/conversations", conversationsRouter);
+  app.use("/api/memories", memoriesRouter);
 
   return app;
 }
