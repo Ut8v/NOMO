@@ -181,19 +181,22 @@ export async function confirmOrder(id: string): Promise<GateActionResult> {
   return { ok: true, order: getPendingOrder(id)! };
 }
 
-export function rejectOrder(id: string): GateActionResult {
+const MAX_REJECT_REASON_LENGTH = 300;
+
+export function rejectOrder(id: string, reason?: string): GateActionResult {
   expireStaleOrders();
   const existing = getPendingOrder(id);
   if (!existing) {
     return { ok: false, code: "not_found", order: null };
   }
-  if (!rejectPendingOrder(id)) {
+  const trimmedReason = typeof reason === "string" ? reason.trim().slice(0, MAX_REJECT_REASON_LENGTH) : "";
+  if (!rejectPendingOrder(id, trimmedReason || null)) {
     return { ok: false, code: "conflict", order: getPendingOrder(id) };
   }
   recordToolCall({
     toolName: existing.action === "cancel" ? "cancel_equity_order" : "place_equity_order",
     tier: "execution",
-    params: { orderId: id, action: existing.action },
+    params: { orderId: id, action: existing.action, reason: trimmedReason || undefined },
     outcome: "rejected by user",
   });
   return { ok: true, order: getPendingOrder(id)! };

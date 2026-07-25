@@ -23,6 +23,7 @@ const STATUS_LABELS: Record<string, string> = {
 export default function OrderCard({ order, onResolved }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
   const [secondsLeft, setSecondsLeft] = useState(() => remainingSeconds(order.expiresAt));
 
   const awaiting = order.status === "awaiting_confirmation" && secondsLeft > 0;
@@ -82,17 +83,34 @@ export default function OrderCard({ order, onResolved }: Props) {
             <dd className="order-result">{order.result}</dd>
           </div>
         )}
+        {order.rejectReason && (
+          <div>
+            <dt>Reject reason</dt>
+            <dd>{order.rejectReason}</dd>
+          </div>
+        )}
       </dl>
 
       {awaiting && (
-        <div className="order-actions">
-          <span className="muted">Expires in {Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, "0")}</span>
-          <button className="danger" onClick={() => void act(rejectOrder)} disabled={busy}>
-            Reject
-          </button>
-          <button onClick={() => void act(confirmOrder)} disabled={busy}>
-            {busy ? "Working..." : order.action === "cancel" ? "Confirm cancellation" : "Confirm order"}
-          </button>
+        <div className="order-review">
+          <input
+            className="order-reason"
+            type="text"
+            placeholder="Optional: why are you rejecting? (helps NOMO learn)"
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            disabled={busy}
+            maxLength={300}
+          />
+          <div className="order-actions">
+            <span className="muted">Expires in {Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, "0")}</span>
+            <button className="danger" onClick={() => void act((id) => rejectOrder(id, rejectReason))} disabled={busy}>
+              Reject
+            </button>
+            <button onClick={() => void act(confirmOrder)} disabled={busy}>
+              {busy ? "Working..." : order.action === "cancel" ? "Confirm cancellation" : "Confirm order"}
+            </button>
+          </div>
         </div>
       )}
 

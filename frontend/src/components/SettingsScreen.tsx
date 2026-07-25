@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import MemoryPanel from "./MemoryPanel";
 import type { RobinhoodStatus, TierSetting } from "../api";
 import {
   fetchRobinhoodStatus,
@@ -268,6 +269,8 @@ export default function SettingsScreen({ onBack }: Props) {
         })}
         {tierError && <p className="error-text">{tierError}</p>}
       </section>
+
+      <MemoryPanel />
     </div>
   );
 }

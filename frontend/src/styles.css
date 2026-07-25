@@ -558,3 +558,82 @@ button.secondary {
 .order-actions button.danger {
   background: #5b2f31;
 }
+
+.order-review {
+  margin-top: 1rem;
+}
+
+.order-reason {
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid #2e3442;
+  background: #0f1115;
+  color: #e6e8eb;
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
+.order-reason:focus {
+  outline: none;
+  border-color: #4f7cff;
+}
+
+.order-review .order-actions {
+  margin-top: 0.6rem;
+}
+
+.memory-heading {
+  margin: 1rem 0 0.4rem;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #9aa3b2;
+}
+
+.memory-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid #20242e;
+}
+
+.memory-content {
+  flex: 1;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.memory-edit {
+  flex: 1;
+  padding: 0.4rem 0.55rem;
+  border-radius: 6px;
+  border: 1px solid #2e3442;
+  background: #0f1115;
+  color: #e6e8eb;
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
+.memory-actions {
+  display: flex;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.memory-btn {
+  margin: 0;
+  width: auto;
+  padding: 0.3rem 0.55rem;
+  font-size: 0.78rem;
+  background: #2f4a7a;
+}
+
+.memory-btn.secondary {
+  background: #2e3442;
+}
+
+.memory-btn.danger {
+  background: #5b2f31;
+}

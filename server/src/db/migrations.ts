@@ -117,6 +117,59 @@ const migrations: Migration[] = [
       ALTER TABLE pending_orders_new RENAME TO pending_orders;
     `,
   },
+  {
+    id: 5,
+    name: "memories",
+    // Durable facts about the user as a trader. Injected into the system
+    // prompt as read-only background only; never consulted by the gate.
+    sql: `
+      CREATE TABLE memories (
+        id TEXT PRIMARY KEY,
+        content TEXT NOT NULL,
+        source TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'approved' CHECK (status IN ('approved', 'pending')),
+        active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      );
+    `,
+  },
+  {
+    id: 6,
+    name: "pending-order-reject-reason",
+    sql: `
+      ALTER TABLE pending_orders ADD COLUMN reject_reason TEXT;
+    `,
+  },
+  {
+    id: 7,
+    name: "outcomes",
+    // Realized results of closed positions, linked to the confirmed order
+    // that opened them. Used only for the review_performance track record.
+    sql: `
+      CREATE TABLE outcomes (
+        id TEXT PRIMARY KEY,
+        pending_order_id TEXT NOT NULL REFERENCES pending_orders(id) ON DELETE CASCADE,
+        symbol TEXT NOT NULL,
+        tags TEXT NOT NULL,
+        realized_pl REAL NOT NULL,
+        recorded_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      );
+    `,
+  },
+  {
+    id: 8,
+    name: "messages-fts",
+    // Full text index over message text for the search_history tool. Kept in
+    // sync by the conversation write path; backfilled once at startup.
+    sql: `
+      CREATE VIRTUAL TABLE messages_fts USING fts5(
+        text,
+        conversation_id UNINDEXED,
+        tokenize = 'porter'
+      );
+    `,
+  },
 ];
 
 export function runMigrations(db: Database): void {

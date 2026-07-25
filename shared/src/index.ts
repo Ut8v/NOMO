@@ -39,3 +39,14 @@ export type {
   ConversationDetail,
   StoredMessage,
 } from "./conversations.js";
+
+export type {
+  MemorySource,
+  MemoryStatus,
+  MemoryView,
+} from "./memories.js";
+
+export type {
+  PerformanceRow,
+  PerformanceReport,
+} from "./performance.js";
