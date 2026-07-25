@@ -32,11 +32,13 @@ The core principle: the LLM interprets and decides, deterministic code computes 
 |------|----------|----------|
 | `market_data` | get_quote, get_ohlcv, render_chart | Runs automatically |
 | `portfolio_read` | positions, balances, order history | Runs automatically |
-| `execution` | place_equity_order | Never runs directly. Confirmation gate required |
+| `execution` | place_equity_order, cancel_equity_order | Never runs directly. Confirmation gate required |
 
-- An execution tool call only creates a pending order (ticker, side, quantity, order type, limit price, rationale) with a 5 minute expiry. The UI renders a confirmation card; Confirm forwards the exact stored parameters to Robinhood, Reject discards them. The only code path that can reach a Robinhood execution tool requires a stored order in confirmed status. There is no bypass flag.
+- An execution tool call only creates a pending order (a placement or a cancellation) with a 5 minute expiry. The UI renders a confirmation card; Confirm forwards the exact stored parameters to Robinhood, Reject discards them. The only code path that can reach a Robinhood execution tool requires a stored order in confirmed status. There is no bypass flag.
+- If the linked Robinhood MCP exposes an order review tool, placements are previewed with it before being sent, and a review failure aborts the placement.
 - Disabling a tool tier in settings removes those tools from the schema sent to Claude, not just from what can run.
 - Every tool call is written to a local audit log with tier, parameters, and outcome.
+- Conversations are saved to the local database, so a reload restores the transcript and past chats are available from the History menu. Assistant replies render Markdown.
 
 ![The confirmation gate](docs/screenshots/confirmation-gate.jpg)
 
