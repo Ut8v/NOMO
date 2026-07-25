@@ -58,6 +58,7 @@ chatRouter.post("/", async (req, res) => {
         onText: (text) => send({ type: "text", text }),
         onChart: (spec) => send({ type: "chart", spec }),
         onPendingOrder: (order) => send({ type: "pending_order", order }),
+        onTool: (event) => send({ type: "tool", event }),
         onUsage: (usage) => send({ type: "usage", usage }),
       },
       abort.signal,

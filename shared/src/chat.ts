@@ -40,11 +40,22 @@ export interface UsageEvent {
   total: UsageTotals;
 }
 
+/** A tool call starting or finishing during a turn, for the live activity view. */
+export interface ToolEvent {
+  id: string;
+  name: string;
+  tier: string;
+  phase: "start" | "end";
+  /** Present on the end phase. */
+  ok?: boolean;
+}
+
 /** Events sent over the SSE chat stream, one JSON object per data line. */
 export type ChatStreamEvent =
   | { type: "text"; text: string }
   | { type: "chart"; spec: ChartSpec }
   | { type: "pending_order"; order: PendingOrderView }
+  | { type: "tool"; event: ToolEvent }
   | { type: "usage"; usage: UsageEvent }
   | { type: "done" }
   | { type: "error"; code: ChatErrorCode; message: string };

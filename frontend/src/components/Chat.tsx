@@ -10,6 +10,8 @@ import {
   saveConversationMessages,
 } from "../api";
 import { streamChat } from "../chatStream";
+import ActivityPanel from "./ActivityPanel";
+import type { ToolActivity } from "./ActivityPanel";
 import AssistantText from "./AssistantText";
 import ChartBlock from "./ChartBlock";
 import ChatInput from "./ChatInput";
@@ -32,6 +34,8 @@ export type MessageBlock =
 export interface UiMessage {
   role: "user" | "assistant";
   blocks: MessageBlock[];
+  /** Live tool-call activity for an assistant turn; not persisted. */
+  activity?: ToolActivity[];
 }
 
 function formatCost(usd: number): string {
@@ -81,7 +85,10 @@ function requestWindow(history: UiMessage[]): ChatMessage[] {
 }
 
 function hasContent(message: UiMessage): boolean {
-  return message.blocks.some((block) => block.kind !== "text" || block.text.length > 0);
+  return (
+    (message.activity?.length ?? 0) > 0 ||
+    message.blocks.some((block) => block.kind !== "text" || block.text.length > 0)
+  );
 }
 
 // An assistant message with no content means nothing arrived; dropping it
@@ -157,7 +164,7 @@ export default function Chat({ onOpenSettings }: Props) {
       if (!content || streaming) return;
 
       const history: UiMessage[] = [...messages, { role: "user", blocks: [{ kind: "text", text: content }] }];
-      setMessages([...history, { role: "assistant", blocks: [] }]);
+      setMessages([...history, { role: "assistant", blocks: [], activity: [] }]);
       setDraft("");
       setFault(null);
       setStreaming(true);
@@ -167,7 +174,19 @@ export default function Chat({ onOpenSettings }: Props) {
           const next = [...current];
           const last = next[next.length - 1];
           if (last && last.role === "assistant") {
-            next[next.length - 1] = { role: "assistant", blocks: append(last.blocks) };
+            next[next.length - 1] = { ...last, blocks: append(last.blocks) };
+          }
+          return next;
+        });
+      };
+
+      // Track tool calls on the streaming assistant message for the live view.
+      const updateActivity = (update: (activity: ToolActivity[]) => ToolActivity[]) => {
+        setMessages((current) => {
+          const next = [...current];
+          const last = next[next.length - 1];
+          if (last && last.role === "assistant") {
+            next[next.length - 1] = { ...last, activity: update(last.activity ?? []) };
           }
           return next;
         });
@@ -210,6 +229,15 @@ export default function Chat({ onOpenSettings }: Props) {
                 appendBlock((blocks) => [...blocks, { kind: "order", order }]);
               }
             },
+            onTool: (event) =>
+              updateActivity((activity) => {
+                if (event.phase === "start") {
+                  return [...activity, { id: event.id, name: event.name, status: "running" }];
+                }
+                return activity.map((a) =>
+                  a.id === event.id ? { ...a, status: event.ok ? "done" : "error" } : a,
+                );
+              }),
             onUsage: (usage) => setTotalCostUsd(usage.total.costUsd),
             onDone: () => {
               dropEmptyReply(setMessages);
@@ -359,6 +387,12 @@ export default function Chat({ onOpenSettings }: Props) {
         )}
         {messages.map((message, index) => (
           <div key={index} className={`bubble bubble-${message.role}`}>
+            {message.role === "assistant" && message.activity && message.activity.length > 0 && (
+              <ActivityPanel
+                activities={message.activity}
+                active={streaming && index === lastIndex}
+              />
+            )}
             {message.blocks.map((block, blockIndex) => {
               if (block.kind === "text") {
                 return message.role === "assistant" ? (

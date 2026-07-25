@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { ChartSpec, ChatErrorCode, ChatMessage, PendingOrderView, UsageEvent } from "@nomo/shared";
+import type { ChartSpec, ChatErrorCode, ChatMessage, PendingOrderView, ToolEvent, UsageEvent } from "@nomo/shared";
 import { config } from "../config.js";
 import { recordToolCall } from "../db/auditLog.js";
 import { getCredential } from "../db/credentials.js";
@@ -140,6 +140,7 @@ export interface ChatTurnHandlers {
   onText: (text: string) => void;
   onChart: (spec: ChartSpec) => void;
   onPendingOrder: (order: PendingOrderView) => void;
+  onTool: (event: ToolEvent) => void;
   onUsage: (usage: UsageEvent) => void;
 }
 
@@ -215,7 +216,15 @@ export async function streamChatTurn(
     const toolUses = final.content.filter(
       (block): block is Anthropic.ToolUseBlock => block.type === "tool_use",
     );
-    const outcomes = await Promise.all(toolUses.map(executeToolUse));
+    const outcomes = await Promise.all(
+      toolUses.map(async (block) => {
+        const tier = getTool(block.name)?.tier ?? "unknown";
+        handlers.onTool({ id: block.id, name: block.name, tier, phase: "start" });
+        const outcome = await executeToolUse(block);
+        handlers.onTool({ id: block.id, name: block.name, tier, phase: "end", ok: outcome.block.is_error !== true });
+        return outcome;
+      }),
+    );
     for (const outcome of outcomes) {
       if (outcome.chart) {
         handlers.onChart(outcome.chart);

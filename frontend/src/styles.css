@@ -440,6 +440,90 @@ button.secondary {
   text-align: left;
 }
 
+.activity {
+  margin-bottom: 0.5rem;
+  border: 1px solid #262b36;
+  border-radius: 8px;
+  background: #0f1218;
+  overflow: hidden;
+}
+
+.activity-header {
+  margin: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: none;
+  border: none;
+  color: #9aa3b2;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.82rem;
+  text-align: left;
+}
+
+.activity-header:hover {
+  color: #c3c9d4;
+}
+
+.activity-chevron {
+  display: inline-flex;
+  transition: transform 0.12s ease;
+}
+
+.activity-chevron-open {
+  transform: rotate(90deg);
+}
+
+.activity-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0.6rem 0.5rem 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.activity-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: #c3c9d4;
+}
+
+.activity-item.activity-done {
+  color: #4fd1a5;
+}
+
+.activity-item.activity-error {
+  color: #f2726f;
+}
+
+.activity-name {
+  color: #d5dae3;
+}
+
+.activity-item.activity-running .activity-name {
+  color: #9aa3b2;
+}
+
+.activity-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid #2e3442;
+  border-top-color: #6f97ff;
+  border-radius: 50%;
+  animation: activity-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes activity-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .caret {
   display: inline-block;
   width: 0.5em;
