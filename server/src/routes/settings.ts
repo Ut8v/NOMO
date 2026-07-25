@@ -5,7 +5,7 @@ import type { ToolTier } from "../tools/registry.js";
 
 export const settingsRouter = Router();
 
-const TIERS: ToolTier[] = ["market_data", "portfolio_read", "execution"];
+const TIERS: ToolTier[] = ["market_data", "portfolio_read", "account_write", "execution"];
 
 settingsRouter.get("/tools", (_req, res) => {
   const tools = getAllTools();

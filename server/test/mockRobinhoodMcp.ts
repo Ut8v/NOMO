@@ -63,6 +63,24 @@ const READ_TOOLS: { name: string; description: string; inputSchema: Record<strin
     inputSchema: { type: "object", properties: { query: { type: "string" } }, required: ["query"] },
     result: { results: [{ symbol: "AAPL", name: "Apple Inc." }] },
   },
+  {
+    name: "get_pnl_trade_history",
+    description: "Trade-by-trade realized P/L history",
+    inputSchema: { type: "object", properties: { symbol: { type: "string" } } },
+    result: { trades: [{ symbol: "AAPL", realized_pnl: "125.50" }] },
+  },
+  {
+    name: "add_to_watchlist",
+    description: "Add symbols to a watchlist",
+    inputSchema: { type: "object", properties: { name: { type: "string" }, symbols: { type: "array", items: { type: "string" } } } },
+    result: { ok: true },
+  },
+  {
+    name: "create_scan",
+    description: "Create a new scan",
+    inputSchema: { type: "object", properties: { name: { type: "string" } } },
+    result: { ok: true },
+  },
 ];
 
 export async function startMockRobinhood(port: number): Promise<MockRobinhood> {
@@ -113,6 +131,12 @@ export async function startMockRobinhood(port: number): Promise<MockRobinhood> {
             properties: { order_id: { type: "string" } },
             required: ["order_id"],
           },
+        },
+        {
+          // An options execution tool: must never register as a model tool.
+          name: "place_option_order",
+          description: "Place a real options order",
+          inputSchema: { type: "object", properties: { symbol: { type: "string" } } },
         },
       ],
     }));

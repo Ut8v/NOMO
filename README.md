@@ -31,7 +31,8 @@ The core principle: the LLM interprets and decides, deterministic code computes 
 | Tier | Examples | Behavior |
 |------|----------|----------|
 | `market_data` | get_quote, get_ohlcv, render_chart | Runs automatically |
-| `portfolio_read` | positions, balances, order history | Runs automatically |
+| `portfolio_read` | positions, balances, P/L, fundamentals, watchlists | Runs automatically |
+| `account_write` | edit watchlists, edit scanners | Runs automatically (reversible, moves no money); toggle off in settings |
 | `execution` | place_equity_order, cancel_equity_order | Never runs directly. Confirmation gate required |
 
 - An execution tool call only creates a pending order (a placement or a cancellation) with a 5 minute expiry. The UI renders a confirmation card; Confirm forwards the exact stored parameters to Robinhood, Reject discards them. The only code path that can reach a Robinhood execution tool requires a stored order in confirmed status. There is no bypass flag.
