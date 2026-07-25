@@ -68,12 +68,21 @@ async function executeToolUse(block: Anthropic.ToolUseBlock): Promise<ToolUseOut
   // which requires a stored order in confirmed status.
   try {
     const result = await tool.execute(block.input);
+    // A tool returning something unserializable (circular refs, BigInt)
+    // must degrade to a tool error, not crash the turn.
+    let content: string;
+    try {
+      content = JSON.stringify(result.forModel) ?? "null";
+    } catch {
+      recordToolCall({ toolName: tool.name, tier: tool.tier, params: block.input, outcome: "error: unserializable result" });
+      return errorResult(`The ${tool.name} tool returned a malformed result.`);
+    }
     recordToolCall({ toolName: tool.name, tier: tool.tier, params: block.input, outcome: result.pendingOrder ? `pending confirmation: ${result.pendingOrder.id}` : "ok" });
     return {
       block: {
         type: "tool_result",
         tool_use_id: block.id,
-        content: JSON.stringify(result.forModel),
+        content,
       },
       chart: result.chart,
       pendingOrder: result.pendingOrder,

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   CandlestickSeries,
   ColorType,
@@ -17,12 +17,45 @@ interface Props {
 
 export default function ChartBlock({ spec }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const [renderFailed, setRenderFailed] = useState(false);
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+    try {
+      return buildChart(container, spec);
+    } catch {
+      setRenderFailed(true);
+      return undefined;
+    }
+  }, [spec]);
 
-    const chart = createChart(container, {
+  if (renderFailed) {
+    return <p className="error-text">The chart for {spec.ticker} could not be rendered.</p>;
+  }
+
+  return (
+    <div className="chart-block">
+      <div className="chart-caption">
+        <span className="chart-caption-ticker">{spec.ticker}</span>
+        <span className="muted">{spec.timeframe}</span>
+        {spec.overlays.map((overlay, index) => (
+          <span
+            key={`${overlay.label}-${index}`}
+            className="chart-caption-overlay"
+            style={{ color: OVERLAY_COLORS[index % OVERLAY_COLORS.length] }}
+          >
+            {overlay.label}
+          </span>
+        ))}
+      </div>
+      <div ref={containerRef} className="chart-canvas" />
+    </div>
+  );
+}
+
+function buildChart(container: HTMLDivElement, spec: ChartSpec): () => void {
+  const chart = createChart(container, {
       height: 320,
       autoSize: true,
       layout: {
@@ -92,26 +125,6 @@ export default function ChartBlock({ spec }: Props) {
       );
     });
 
-    chart.timeScale().fitContent();
-    return () => chart.remove();
-  }, [spec]);
-
-  return (
-    <div className="chart-block">
-      <div className="chart-caption">
-        <span className="chart-caption-ticker">{spec.ticker}</span>
-        <span className="muted">{spec.timeframe}</span>
-        {spec.overlays.map((overlay, index) => (
-          <span
-            key={`${overlay.label}-${index}`}
-            className="chart-caption-overlay"
-            style={{ color: OVERLAY_COLORS[index % OVERLAY_COLORS.length] }}
-          >
-            {overlay.label}
-          </span>
-        ))}
-      </div>
-      <div ref={containerRef} className="chart-canvas" />
-    </div>
-  );
+  chart.timeScale().fitContent();
+  return () => chart.remove();
 }

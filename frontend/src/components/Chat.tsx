@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ChartSpec, ChatMessage, PendingOrderView } from "@nomo/shared";
+import type { ChartSpec, ChatMessage, ConversationSummary, PendingOrderView, StoredMessage } from "@nomo/shared";
 import { MAX_CHAT_MESSAGES } from "@nomo/shared";
+import {
+  createConversation,
+  deleteConversation,
+  getConversation,
+  listConversations,
+  saveConversationMessages,
+} from "../api";
 import { streamChat } from "../chatStream";
+import AssistantText from "./AssistantText";
 import ChartBlock from "./ChartBlock";
 import ChatInput from "./ChatInput";
 import OrderCard from "./OrderCard";
@@ -26,9 +34,12 @@ export interface UiMessage {
 }
 
 function orderRecord(order: PendingOrderView): string {
-  const price = order.limitPrice ? ` at $${order.limitPrice}` : "";
   const result = order.result ? `. ${order.result.slice(0, 200)}` : "";
-  return `[Order record: ${order.side} ${order.quantity} ${order.ticker} ${order.orderType}${price}. Status: ${order.status}${result}]`;
+  const subject =
+    order.action === "cancel"
+      ? `cancel ${order.ticker} order ${order.brokerRef ?? ""}`.trim()
+      : `${order.side} ${order.quantity} ${order.ticker} ${order.orderType}${order.limitPrice ? ` at $${order.limitPrice}` : ""}`;
+  return `[Order record: ${subject}. Status: ${order.status}${result}]`;
 }
 
 /**
@@ -84,14 +95,48 @@ export default function Chat({ onOpenSettings }: Props) {
   const [draft, setDraft] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [fault, setFault] = useState<ChatFault | null>(null);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  const refreshList = useCallback(async () => {
+    setConversations(await listConversations().catch(() => []));
+  }, []);
+
+  // On mount, restore the most recent conversation so a reload does not lose
+  // the transcript.
+  useEffect(() => {
+    void (async () => {
+      const list = await listConversations().catch(() => []);
+      setConversations(list);
+      const newest = list[0];
+      if (!newest) return;
+      const detail = await getConversation(newest.id).catch(() => null);
+      if (detail) {
+        setMessages(detail.messages.map((m) => ({ role: m.role, blocks: m.blocks as MessageBlock[] })));
+        setConversationId(detail.id);
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
+
+  // Persist after the transcript settles. Skipped while streaming so partial
+  // turns are not saved token by token.
+  useEffect(() => {
+    if (!conversationId || streaming || messages.length === 0) return;
+    const stored: StoredMessage[] = messages.map((m) => ({ role: m.role, blocks: m.blocks }));
+    const timer = window.setTimeout(() => {
+      void saveConversationMessages(conversationId, stored).then(refreshList).catch(() => undefined);
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [messages, conversationId, streaming, refreshList]);
 
   const send = useCallback(
     (text: string) => {
@@ -118,33 +163,55 @@ export default function Chat({ onOpenSettings }: Props) {
       const abort = new AbortController();
       abortRef.current = abort;
 
-      void streamChat(
-        { messages: requestWindow(history) },
-        {
-          onText: (delta) =>
-            appendBlock((blocks) => {
-              const last = blocks[blocks.length - 1];
-              if (last && last.kind === "text") {
-                return [...blocks.slice(0, -1), { kind: "text", text: last.text + delta }];
+      void (async () => {
+        // A brand new chat has no row yet; create one titled from the first
+        // message so it appears in history.
+        if (!conversationId) {
+          const created = await createConversation(content).catch(() => null);
+          if (created) {
+            setConversationId(created.id);
+            void refreshList();
+          }
+        }
+
+        void streamChat(
+          { messages: requestWindow(history) },
+          {
+            onText: (delta) =>
+              appendBlock((blocks) => {
+                const last = blocks[blocks.length - 1];
+                if (last && last.kind === "text") {
+                  return [...blocks.slice(0, -1), { kind: "text", text: last.text + delta }];
+                }
+                return [...blocks, { kind: "text", text: delta }];
+              }),
+            // Malformed payloads are dropped rather than rendered; a bad
+            // frame must not blank the whole conversation.
+            onChart: (spec) => {
+              if (spec && Array.isArray(spec.bars) && spec.bars.length > 0) {
+                appendBlock((blocks) => [...blocks, { kind: "chart", spec }]);
               }
-              return [...blocks, { kind: "text", text: delta }];
-            }),
-          onChart: (spec) => appendBlock((blocks) => [...blocks, { kind: "chart", spec }]),
-          onPendingOrder: (order) => appendBlock((blocks) => [...blocks, { kind: "order", order }]),
-          onDone: () => {
-            dropEmptyReply(setMessages);
-            setStreaming(false);
+            },
+            onPendingOrder: (order) => {
+              if (order && typeof order.id === "string") {
+                appendBlock((blocks) => [...blocks, { kind: "order", order }]);
+              }
+            },
+            onDone: () => {
+              dropEmptyReply(setMessages);
+              setStreaming(false);
+            },
+            onError: (code, message) => {
+              dropEmptyReply(setMessages);
+              setFault({ code, message });
+              setStreaming(false);
+            },
           },
-          onError: (code, message) => {
-            dropEmptyReply(setMessages);
-            setFault({ code, message });
-            setStreaming(false);
-          },
-        },
-        abort.signal,
-      );
+          abort.signal,
+        );
+      })();
     },
-    [messages, streaming],
+    [messages, streaming, conversationId, refreshList],
   );
 
   const stop = useCallback(() => {
@@ -169,10 +236,36 @@ export default function Chat({ onOpenSettings }: Props) {
   const newChat = useCallback(() => {
     abortRef.current?.abort();
     setMessages([]);
+    setConversationId(null);
     setFault(null);
     setDraft("");
     setStreaming(false);
+    setShowHistory(false);
   }, []);
+
+  const openConversation = useCallback(async (id: string) => {
+    abortRef.current?.abort();
+    setStreaming(false);
+    setFault(null);
+    setShowHistory(false);
+    const detail = await getConversation(id).catch(() => null);
+    if (detail) {
+      setMessages(detail.messages.map((m) => ({ role: m.role, blocks: m.blocks as MessageBlock[] })));
+      setConversationId(detail.id);
+    }
+  }, []);
+
+  const removeConversation = useCallback(
+    async (id: string) => {
+      await deleteConversation(id).catch(() => undefined);
+      await refreshList();
+      if (id === conversationId) {
+        setMessages([]);
+        setConversationId(null);
+      }
+    },
+    [conversationId, refreshList],
+  );
 
   const keyFault = fault?.code === "missing_api_key" || fault?.code === "invalid_api_key";
   const lastIndex = messages.length - 1;
@@ -182,7 +275,10 @@ export default function Chat({ onOpenSettings }: Props) {
       <header className="chat-header">
         <span className="chat-title">NOMO</span>
         <div className="chat-header-actions">
-          <button className="link-button" onClick={newChat} disabled={messages.length === 0}>
+          <button className="link-button" onClick={() => setShowHistory((v) => !v)} disabled={conversations.length === 0}>
+            History
+          </button>
+          <button className="link-button" onClick={newChat} disabled={messages.length === 0 && !conversationId}>
             New chat
           </button>
           <button className="link-button" onClick={onOpenSettings}>
@@ -190,6 +286,26 @@ export default function Chat({ onOpenSettings }: Props) {
           </button>
         </div>
       </header>
+
+      {showHistory && (
+        <div className="history-panel">
+          {conversations.length === 0 && <p className="muted">No saved conversations yet.</p>}
+          {conversations.map((conversation) => (
+            <div key={conversation.id} className={`history-row ${conversation.id === conversationId ? "history-active" : ""}`}>
+              <button className="history-open" onClick={() => void openConversation(conversation.id)}>
+                {conversation.title}
+              </button>
+              <button
+                className="history-delete"
+                aria-label="Delete conversation"
+                onClick={() => void removeConversation(conversation.id)}
+              >
+                Delete
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="chat-messages" ref={scrollRef}>
         {messages.length === 0 && (
@@ -200,7 +316,13 @@ export default function Chat({ onOpenSettings }: Props) {
         {messages.map((message, index) => (
           <div key={index} className={`bubble bubble-${message.role}`}>
             {message.blocks.map((block, blockIndex) => {
-              if (block.kind === "text") return <span key={blockIndex}>{block.text}</span>;
+              if (block.kind === "text") {
+                return message.role === "assistant" ? (
+                  <AssistantText key={blockIndex} text={block.text} />
+                ) : (
+                  <span key={blockIndex}>{block.text}</span>
+                );
+              }
               if (block.kind === "chart") return <ChartBlock key={blockIndex} spec={block.spec} />;
               return <OrderCard key={block.order.id} order={block.order} onResolved={updateOrder} />;
             })}

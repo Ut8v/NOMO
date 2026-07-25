@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { OrderSide, OrderType, PendingOrderStatus, PendingOrderView } from "@nomo/shared";
+import type { OrderAction, OrderSide, OrderType, PendingOrderStatus, PendingOrderView } from "@nomo/shared";
 import { getDb } from "./index.js";
 
 /**
@@ -12,11 +12,13 @@ const EXPIRY_MS = 5 * 60 * 1000;
 
 interface PendingOrderRow {
   id: string;
+  action: OrderAction;
   ticker: string;
-  side: OrderSide;
-  quantity: string;
-  order_type: OrderType;
+  side: OrderSide | null;
+  quantity: string | null;
+  order_type: OrderType | null;
   limit_price: string | null;
+  broker_ref: string | null;
   rationale: string;
   status: PendingOrderStatus;
   created_at: string;
@@ -28,11 +30,13 @@ interface PendingOrderRow {
 function toView(row: PendingOrderRow): PendingOrderView {
   return {
     id: row.id,
+    action: row.action,
     ticker: row.ticker,
     side: row.side,
     quantity: row.quantity,
     orderType: row.order_type,
     limitPrice: row.limit_price,
+    brokerRef: row.broker_ref,
     rationale: row.rationale,
     status: row.status,
     createdAt: row.created_at,
@@ -42,11 +46,13 @@ function toView(row: PendingOrderRow): PendingOrderView {
 }
 
 export interface NewPendingOrder {
+  action: OrderAction;
   ticker: string;
-  side: OrderSide;
-  quantity: string;
-  orderType: OrderType;
+  side: OrderSide | null;
+  quantity: string | null;
+  orderType: OrderType | null;
   limitPrice: string | null;
+  brokerRef: string | null;
   rationale: string;
 }
 
@@ -55,10 +61,21 @@ export function createPendingOrder(order: NewPendingOrder): PendingOrderView {
   const expiresAt = new Date(Date.now() + EXPIRY_MS).toISOString();
   getDb()
     .prepare(
-      `INSERT INTO pending_orders (id, ticker, side, quantity, order_type, limit_price, rationale, status, expires_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'awaiting_confirmation', ?)`,
+      `INSERT INTO pending_orders (id, action, ticker, side, quantity, order_type, limit_price, broker_ref, rationale, status, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'awaiting_confirmation', ?)`,
     )
-    .run(id, order.ticker, order.side, order.quantity, order.orderType, order.limitPrice, order.rationale, expiresAt);
+    .run(
+      id,
+      order.action,
+      order.ticker,
+      order.side,
+      order.quantity,
+      order.orderType,
+      order.limitPrice,
+      order.brokerRef,
+      order.rationale,
+      expiresAt,
+    );
   return getPendingOrder(id)!;
 }
 

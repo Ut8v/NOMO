@@ -6,6 +6,7 @@
 
 export type OrderSide = "buy" | "sell";
 export type OrderType = "market" | "limit";
+export type OrderAction = "place" | "cancel";
 
 export type PendingOrderStatus =
   | "awaiting_confirmation"
@@ -17,11 +18,16 @@ export type PendingOrderStatus =
 
 export interface PendingOrderView {
   id: string;
+  /** "place" proposes a new order; "cancel" proposes cancelling an existing one. */
+  action: OrderAction;
   ticker: string;
-  side: OrderSide;
-  quantity: string;
-  orderType: OrderType;
+  /** Null for cancel proposals. */
+  side: OrderSide | null;
+  quantity: string | null;
+  orderType: OrderType | null;
   limitPrice: string | null;
+  /** Broker order id to cancel; null for place proposals. */
+  brokerRef: string | null;
   rationale: string;
   status: PendingOrderStatus;
   createdAt: string;
