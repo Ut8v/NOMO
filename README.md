@@ -39,7 +39,9 @@ The core principle: the LLM interprets and decides, deterministic code computes 
 - If the linked Robinhood MCP exposes an order review tool, placements are previewed with it before being sent, and a review failure aborts the placement.
 - Disabling a tool tier in settings removes those tools from the schema sent to Claude, not just from what can run.
 - Every tool call is written to a local audit log with tier, parameters, and outcome.
-- Conversations are saved to the local database, so a reload restores the transcript and past chats are available from the History menu. Assistant replies render Markdown.
+- Conversations are saved to the local database, so a reload restores the transcript and past chats are listed in a collapsible sidebar. Assistant replies render Markdown.
+- While Claude works, a live activity indicator shows each tool call as it runs and collapses to a compact "Used N tools" summary once the answer lands.
+- The header shows an estimated running total of Anthropic API spend for this instance, priced from list rates and recorded locally.
 
 ![The confirmation gate](docs/screenshots/confirmation-gate.jpg)
 
