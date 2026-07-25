@@ -52,6 +52,13 @@ const migrations: Migration[] = [
       );
     `,
   },
+  {
+    id: 2,
+    name: "pending-order-result",
+    sql: `
+      ALTER TABLE pending_orders ADD COLUMN result TEXT;
+    `,
+  },
 ];
 
 export function runMigrations(db: Database): void {

@@ -1,4 +1,4 @@
-import type { SetupStatus, SaveKeysRequest, SaveKeysResponse } from "@nomo/shared";
+import type { PendingOrderView, SetupStatus, SaveKeysRequest, SaveKeysResponse } from "@nomo/shared";
 
 export interface RobinhoodStatus {
   /** Tokens are stored for the real Robinhood MCP. */
@@ -53,6 +53,25 @@ export async function updateTierSetting(tier: string, enabled: boolean): Promise
     body: JSON.stringify({ tier, enabled }),
   });
   if (!res.ok) throw new Error(`Failed to update tool settings (${res.status})`);
+}
+
+export async function confirmOrder(id: string): Promise<{ order: PendingOrderView }> {
+  return orderAction(id, "confirm");
+}
+
+export async function rejectOrder(id: string): Promise<{ order: PendingOrderView }> {
+  return orderAction(id, "reject");
+}
+
+async function orderAction(id: string, action: "confirm" | "reject"): Promise<{ order: PendingOrderView }> {
+  const res = await fetch(`/api/orders/${encodeURIComponent(id)}/${action}`, { method: "POST" });
+  const body = (await res.json().catch(() => null)) as { order?: PendingOrderView; error?: string } | null;
+  // Conflict responses still carry the order's current state, e.g. expired,
+  // so the card can render the truth instead of a bare error.
+  if (body?.order && (res.ok || res.status === 409)) {
+    return { order: body.order };
+  }
+  throw new Error(body?.error ?? `The ${action} request failed (${res.status}).`);
 }
 
 export async function saveKeys(request: SaveKeysRequest): Promise<SaveKeysResponse> {

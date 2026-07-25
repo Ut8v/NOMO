@@ -24,3 +24,11 @@ export type {
   ChartOverlay,
   ChartSpec,
 } from "./chart.js";
+
+export type {
+  OrderSide,
+  OrderType,
+  PendingOrderStatus,
+  PendingOrderView,
+  OrderActionResponse,
+} from "./orders.js";
