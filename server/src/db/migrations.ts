@@ -141,6 +141,22 @@ const migrations: Migration[] = [
       ALTER TABLE pending_orders ADD COLUMN reject_reason TEXT;
     `,
   },
+  {
+    id: 7,
+    name: "outcomes",
+    // Realized results of closed positions, linked to the confirmed order
+    // that opened them. Used only for the review_performance track record.
+    sql: `
+      CREATE TABLE outcomes (
+        id TEXT PRIMARY KEY,
+        pending_order_id TEXT NOT NULL REFERENCES pending_orders(id) ON DELETE CASCADE,
+        symbol TEXT NOT NULL,
+        tags TEXT NOT NULL,
+        realized_pl REAL NOT NULL,
+        recorded_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      );
+    `,
+  },
 ];
 
 export function runMigrations(db: Database): void {

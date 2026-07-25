@@ -1,5 +1,8 @@
 import { createMemory } from "../db/memories.js";
+import { insertOutcome, listOutcomes } from "../db/outcomes.js";
+import { getPendingOrder } from "../db/pendingOrders.js";
 import { distillLessons } from "../services/distill.js";
+import { computePerformance, extractTags } from "../services/performance.js";
 import { registerTool } from "./registry.js";
 import type { ToolExecutionResult } from "./registry.js";
 
@@ -55,6 +58,61 @@ export function registerLearningTools(): void {
     execute: async (): Promise<ToolExecutionResult> => {
       const result = await distillLessons();
       return { forModel: result };
+    },
+  });
+
+  registerTool({
+    name: "record_outcome",
+    tier: "market_data",
+    description:
+      "Record the realized profit or loss of a closed position from a previously confirmed order, so the track record can be reviewed later. Read the realized P/L from the Robinhood order or position tools; do not estimate it. Tags are taken from the original order's rationale.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        pending_order_id: { type: "string", description: "Id of the original confirmed order" },
+        realized_pl: {
+          type: "number",
+          description: "Realized profit (positive) or loss (negative) in dollars, read from Robinhood",
+        },
+      },
+      required: ["pending_order_id", "realized_pl"],
+    },
+    execute: async (input): Promise<ToolExecutionResult> => {
+      const raw = (input ?? {}) as { pending_order_id?: unknown; realized_pl?: unknown };
+      const orderId = typeof raw.pending_order_id === "string" ? raw.pending_order_id : "";
+      const realizedPl = typeof raw.realized_pl === "number" ? raw.realized_pl : Number.NaN;
+      if (!orderId) throw new Error("pending_order_id is required.");
+      if (!Number.isFinite(realizedPl)) throw new Error("realized_pl must be a number.");
+
+      const order = getPendingOrder(orderId);
+      if (!order) throw new Error("No order with that id.");
+      if (order.status !== "executed") {
+        throw new Error("Outcomes can only be recorded for orders that were confirmed and executed.");
+      }
+
+      const tags = extractTags(order.rationale);
+      insertOutcome({ pendingOrderId: orderId, symbol: order.ticker, tags, realizedPl });
+      return {
+        forModel: {
+          recorded: true,
+          symbol: order.ticker,
+          tags,
+          note: "Outcome saved to the trade journal. Use review_performance to see the track record.",
+        },
+      };
+    },
+  });
+
+  registerTool({
+    name: "review_performance",
+    tier: "market_data",
+    description:
+      "Compute the track record of confirmed trades grouped by the tags in their rationales (wins, losses, total and average P/L, win rate). The figures are computed deterministically; interpret them for the user, do not recompute them.",
+    inputSchema: { type: "object", properties: {} },
+    execute: async (): Promise<ToolExecutionResult> => {
+      const outcomes = listOutcomes();
+      const report = computePerformance(outcomes.map((o) => ({ tags: o.tags, realizedPl: o.realizedPl })));
+      return { forModel: { tradesRecorded: outcomes.length, ...report } };
     },
   });
 }
