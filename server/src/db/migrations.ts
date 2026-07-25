@@ -117,6 +117,23 @@ const migrations: Migration[] = [
       ALTER TABLE pending_orders_new RENAME TO pending_orders;
     `,
   },
+  {
+    id: 5,
+    name: "memories",
+    // Durable facts about the user as a trader. Injected into the system
+    // prompt as read-only background only; never consulted by the gate.
+    sql: `
+      CREATE TABLE memories (
+        id TEXT PRIMARY KEY,
+        content TEXT NOT NULL,
+        source TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'approved' CHECK (status IN ('approved', 'pending')),
+        active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      );
+    `,
+  },
 ];
 
 export function runMigrations(db: Database): void {
