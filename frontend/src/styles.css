@@ -368,6 +368,12 @@ button.secondary {
   border: 1px solid #262b36;
 }
 
+/* The bubble uses pre-wrap for plain user text; markdown handles its own
+   whitespace, so reset it here to avoid doubled-up blank lines. */
+.markdown {
+  white-space: normal;
+}
+
 .markdown > *:first-child {
   margin-top: 0;
 }
