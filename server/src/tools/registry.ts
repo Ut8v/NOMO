@@ -8,7 +8,7 @@ import { isTierEnabled } from "../db/settings.js";
  *   market_data and portfolio_read execute immediately,
  *   execution never runs directly and must go through the confirmation gate.
  */
-export type ToolTier = "market_data" | "portfolio_read" | "execution";
+export type ToolTier = "market_data" | "portfolio_read" | "account_write" | "execution";
 
 export interface ToolExecutionResult {
   /** JSON-serialized into the tool_result the model sees. Keep it compact. */

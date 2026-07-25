@@ -19,6 +19,7 @@ let gate: typeof import("./executionGate.js");
 let robinhoodMcp: typeof import("./robinhoodMcp.js");
 let dbModule: typeof import("../db/index.js");
 let memoriesDb: typeof import("../db/memories.js");
+let registry: typeof import("../tools/registry.js");
 
 before(async () => {
   mock = await startMockRobinhood(MOCK_PORT);
@@ -29,6 +30,7 @@ before(async () => {
   gate = await import("./executionGate.js");
   robinhoodMcp = await import("./robinhoodMcp.js");
   memoriesDb = await import("../db/memories.js");
+  registry = await import("../tools/registry.js");
 });
 
 after(async () => {
@@ -262,4 +264,22 @@ test("reject records the veto reason and never contacts the broker", () => {
   assert.equal(result.order?.status, "rejected");
   assert.equal(result.order?.rejectReason, "position size too large");
   assert.equal(mock.placedOrders.length, placedBefore);
+});
+
+// Tool-tier mapping: reads and account writes register at their tiers, and
+// no order-execution tool (equity or option) is ever a model tool.
+test("discovery registers read and account_write tools, never order tools", async () => {
+  await robinhoodMcp.connectAndRegisterTools();
+  const byName = new Map(registry.getAllTools().map((t) => [t.name, t.tier]));
+
+  assert.equal(byName.get("get_pnl_trade_history"), "portfolio_read");
+  assert.equal(byName.get("get_equity_positions"), "portfolio_read");
+  assert.equal(byName.get("add_to_watchlist"), "account_write");
+  assert.equal(byName.get("create_scan"), "account_write");
+
+  // Money-moving order tools must never be registered as model tools.
+  for (const orderTool of ["place_equity_order", "cancel_equity_order", "review_equity_order", "place_option_order"]) {
+    assert.equal(byName.has(orderTool), false, `${orderTool} must not be a model tool`);
+  }
+  robinhoodMcp.unregisterRobinhoodTools();
 });

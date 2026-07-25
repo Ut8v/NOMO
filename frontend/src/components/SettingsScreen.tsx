@@ -16,8 +16,15 @@ interface Props {
 
 const TIER_LABELS: Record<string, { title: string; note: string }> = {
   market_data: { title: "Market data", note: "Quotes, price history, and charts. Runs automatically." },
-  portfolio_read: { title: "Portfolio (read only)", note: "Positions, balances, and order history from Robinhood. Runs automatically." },
-  execution: { title: "Trading", note: "Order placement arrives in a later phase and always requires confirmation." },
+  portfolio_read: {
+    title: "Portfolio (read only)",
+    note: "Positions, balances, P/L, fundamentals, and watchlists from Robinhood. Runs automatically.",
+  },
+  account_write: {
+    title: "Account changes",
+    note: "Editing watchlists and scanners. Reversible, moves no money, and runs automatically. Turn off to prevent any account changes.",
+  },
+  execution: { title: "Trading", note: "Placing or cancelling orders. Never runs automatically; every order requires your confirmation." },
 };
 
 export default function SettingsScreen({ onBack }: Props) {

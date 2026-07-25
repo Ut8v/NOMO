@@ -7,24 +7,73 @@ import type Anthropic from "@anthropic-ai/sdk";
 import type { PendingOrderView } from "@nomo/shared";
 import { config } from "../config.js";
 import { registerTool, unregisterTool } from "../tools/registry.js";
+import type { ToolTier } from "../tools/registry.js";
 import { RobinhoodOAuthProvider } from "./robinhoodAuth.js";
 
 /**
- * Read-only allowlist. Only tools named here AND present in the live
- * tools/list response are registered as model tools, always at the
- * portfolio_read tier. Execution tools (review, place, cancel) are never
- * registered as model tools; they are reachable only through the
- * confirmation gate via executeConfirmedOrder.
+ * Allowlist mapping each Robinhood tool we expose to its tier. Only tools
+ * named here AND present in the live tools/list response are registered as
+ * model tools.
+ *
+ * Every money-moving order tool (place/cancel/review, equities and options,
+ * option exercise) is deliberately ABSENT: those are never registered as
+ * model tools and are reachable only through the confirmation gate via
+ * executeConfirmedOrder. account_write tools change account state but move no
+ * money, so they auto-run (subject to the settings toggle) rather than going
+ * through the order gate.
  */
-const READ_TOOL_ALLOWLIST = new Set([
-  "get_accounts",
-  "get_portfolio",
-  "get_equity_positions",
-  "get_equity_orders",
-  "get_equity_quotes",
-  "get_equity_tradability",
-  "search",
-]);
+const TOOL_TIERS: Record<string, ToolTier> = {
+  // Account, portfolio, and P/L reads.
+  get_accounts: "portfolio_read",
+  get_portfolio: "portfolio_read",
+  get_realized_pnl: "portfolio_read",
+  get_pnl_trade_history: "portfolio_read",
+  search: "portfolio_read",
+  // Equity reads.
+  get_equity_positions: "portfolio_read",
+  get_equity_orders: "portfolio_read",
+  get_equity_quotes: "portfolio_read",
+  get_equity_tradability: "portfolio_read",
+  get_equity_tax_lots: "portfolio_read",
+  // Market data reads.
+  get_equity_historicals: "portfolio_read",
+  get_equity_fundamentals: "portfolio_read",
+  get_financials: "portfolio_read",
+  get_equity_price_book: "portfolio_read",
+  get_equity_technical_indicators: "portfolio_read",
+  get_earnings_results: "portfolio_read",
+  get_earnings_calendar: "portfolio_read",
+  get_indexes: "portfolio_read",
+  get_index_quotes: "portfolio_read",
+  // Options reads.
+  get_option_positions: "portfolio_read",
+  get_option_orders: "portfolio_read",
+  get_option_quotes: "portfolio_read",
+  get_option_chains: "portfolio_read",
+  get_option_instruments: "portfolio_read",
+  get_option_historicals: "portfolio_read",
+  get_option_watchlist: "portfolio_read",
+  get_option_level_upgrade_info: "portfolio_read",
+  // Watchlist and scanner reads.
+  get_watchlists: "portfolio_read",
+  get_watchlist_items: "portfolio_read",
+  get_popular_watchlists: "portfolio_read",
+  get_scans: "portfolio_read",
+  get_scanner_filter_specs: "portfolio_read",
+  run_scan: "portfolio_read",
+  // Account changes: reversible, no money moves. Auto-run, toggleable.
+  create_watchlist: "account_write",
+  update_watchlist: "account_write",
+  follow_watchlist: "account_write",
+  unfollow_watchlist: "account_write",
+  add_to_watchlist: "account_write",
+  remove_from_watchlist: "account_write",
+  add_option_to_watchlist: "account_write",
+  remove_option_from_watchlist: "account_write",
+  create_scan: "account_write",
+  update_scan_filters: "account_write",
+  update_scan_config: "account_write",
+};
 
 export const oauthProvider = new RobinhoodOAuthProvider();
 
@@ -153,17 +202,18 @@ export async function connectAndRegisterTools(): Promise<string[]> {
   unregisterRobinhoodTools();
   availableToolNames = new Set(discovered.tools.map((tool) => tool.name));
   for (const tool of discovered.tools) {
-    if (!READ_TOOL_ALLOWLIST.has(tool.name)) continue;
+    const tier = TOOL_TIERS[tool.name];
+    if (!tier) continue;
     registerTool({
       name: tool.name,
-      tier: "portfolio_read",
+      tier,
       description: tool.description ?? tool.name,
       inputSchema: tool.inputSchema as Anthropic.Tool.InputSchema,
       execute: async (input) => ({ forModel: await callRobinhoodTool(tool.name, input) }),
     });
     registeredToolNames.push(tool.name);
   }
-  console.log(`Registered ${registeredToolNames.length} Robinhood read tools at portfolio_read tier.`);
+  console.log(`Registered ${registeredToolNames.length} Robinhood tools: ${registeredToolNames.join(", ")}`);
   return registeredToolNames;
 }
 
