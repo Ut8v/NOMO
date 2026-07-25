@@ -45,6 +45,17 @@ The core principle: the LLM interprets and decides, deterministic code computes 
 
 ![The confirmation gate](docs/screenshots/confirmation-gate.jpg)
 
+## Learning loop
+
+The agent can learn from your history so its proposals get more tailored over time. This never touches execution: no stored fact, lesson, or track record can auto-confirm, resize, or skip the confirmation gate. Learning shapes what Claude proposes, never whether or how a trade is placed.
+
+- **Trader profile memory.** Claude can record durable facts about you as a trader (risk tolerance, position sizing, watched tickers, strategy preferences) with the `remember` tool. Relevant memories are injected into each session as read-only background context, never as instructions, within a small token budget.
+- **Veto feedback.** The confirmation card's Reject action takes an optional one-line reason. On demand, `distill_lessons` reviews your confirm and reject history and proposes durable patterns (for example, a size threshold you consistently reject above).
+- **Trade journal.** Confirmed trades keep their rationale. `record_outcome` logs realized P/L when a position closes, and `review_performance` computes Claude's own proposal track record by strategy or setup so later proposals can reflect what actually worked.
+- **Conversation search.** Past chats are indexed locally with SQLite FTS5 and searchable through the `search_history` tool.
+
+Everything the agent learns is visible and yours to manage. Distilled lessons land in a review list in Settings as pending candidates; nothing about you is stored invisibly, and you can approve, edit, deactivate, or delete any memory there.
+
 ## What you need
 
 - Node.js 20 or newer
