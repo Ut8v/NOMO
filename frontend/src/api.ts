@@ -7,6 +7,7 @@ import type {
   SaveKeysRequest,
   SaveKeysResponse,
   StoredMessage,
+  UsageTotals,
 } from "@nomo/shared";
 
 export interface RobinhoodStatus {
@@ -170,4 +171,10 @@ export async function distillLessons(): Promise<{ created: number; note: string 
   const body = await res.json().catch(() => null);
   if (!res.ok) throw new Error(body?.error ?? `Distillation failed (${res.status})`);
   return body;
+}
+
+export async function fetchUsageTotals(): Promise<UsageTotals> {
+  const res = await fetch("/api/usage");
+  if (!res.ok) throw new Error(`Failed to load usage (${res.status})`);
+  return res.json();
 }

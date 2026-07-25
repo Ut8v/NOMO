@@ -4,6 +4,7 @@ import { MAX_CHAT_MESSAGES } from "@nomo/shared";
 import {
   createConversation,
   deleteConversation,
+  fetchUsageTotals,
   getConversation,
   listConversations,
   saveConversationMessages,
@@ -31,6 +32,10 @@ export type MessageBlock =
 export interface UiMessage {
   role: "user" | "assistant";
   blocks: MessageBlock[];
+}
+
+function formatCost(usd: number): string {
+  return usd < 1 ? `$${usd.toFixed(4)}` : `$${usd.toFixed(2)}`;
 }
 
 function orderRecord(order: PendingOrderView): string {
@@ -99,11 +104,18 @@ export default function Chat({ onOpenSettings }: Props) {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [totalCostUsd, setTotalCostUsd] = useState<number | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const refreshList = useCallback(async () => {
     setConversations(await listConversations().catch(() => []));
+  }, []);
+
+  useEffect(() => {
+    void fetchUsageTotals()
+      .then((totals) => setTotalCostUsd(totals.costUsd))
+      .catch(() => undefined);
   }, []);
 
   // On mount, restore the most recent conversation so a reload does not lose
@@ -198,6 +210,7 @@ export default function Chat({ onOpenSettings }: Props) {
                 appendBlock((blocks) => [...blocks, { kind: "order", order }]);
               }
             },
+            onUsage: (usage) => setTotalCostUsd(usage.total.costUsd),
             onDone: () => {
               dropEmptyReply(setMessages);
               setStreaming(false);
@@ -276,6 +289,11 @@ export default function Chat({ onOpenSettings }: Props) {
       <header className="chat-header">
         <span className="chat-title">NOMO</span>
         <div className="chat-header-actions">
+          {totalCostUsd !== null && (
+            <span className="cost-chip" title="Estimated Anthropic API usage, all time">
+              ≈ {formatCost(totalCostUsd)}
+            </span>
+          )}
           <button className="link-button" onClick={() => setShowHistory((v) => !v)} disabled={conversations.length === 0}>
             History
           </button>

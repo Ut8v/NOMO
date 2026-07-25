@@ -27,11 +27,24 @@ export type ChatErrorCode =
 
 import type { ChartSpec } from "./chart.js";
 import type { PendingOrderView } from "./orders.js";
+import type { UsageTotals } from "./usage.js";
+
+/** Anthropic token usage for one assistant turn plus the running total. */
+export interface UsageEvent {
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  /** Estimated cost of this turn, USD. */
+  costUsd: number;
+  /** Running totals across all turns, USD and tokens. */
+  total: UsageTotals;
+}
 
 /** Events sent over the SSE chat stream, one JSON object per data line. */
 export type ChatStreamEvent =
   | { type: "text"; text: string }
   | { type: "chart"; spec: ChartSpec }
   | { type: "pending_order"; order: PendingOrderView }
+  | { type: "usage"; usage: UsageEvent }
   | { type: "done" }
   | { type: "error"; code: ChatErrorCode; message: string };

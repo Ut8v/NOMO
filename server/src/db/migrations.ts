@@ -170,6 +170,24 @@ const migrations: Migration[] = [
       );
     `,
   },
+  {
+    id: 9,
+    name: "usage-events",
+    // One row per assistant turn, recording token usage and estimated cost
+    // so the UI can display Anthropic API spend.
+    sql: `
+      CREATE TABLE usage_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        model TEXT NOT NULL,
+        input_tokens INTEGER NOT NULL,
+        output_tokens INTEGER NOT NULL,
+        cache_read_tokens INTEGER NOT NULL DEFAULT 0,
+        cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
+        cost_usd REAL NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      );
+    `,
+  },
 ];
 
 export function runMigrations(db: Database): void {

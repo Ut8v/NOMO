@@ -12,6 +12,7 @@ export type {
   ChatRequest,
   ChatErrorCode,
   ChatStreamEvent,
+  UsageEvent,
 } from "./chat.js";
 
 export { MAX_CHAT_MESSAGES } from "./chat.js";
@@ -50,3 +51,5 @@ export type {
   PerformanceRow,
   PerformanceReport,
 } from "./performance.js";
+
+export type { UsageTotals } from "./usage.js";
