@@ -134,7 +134,7 @@ async function runOrchestratedResearch(
   try {
     const result = await runResearch(
       question,
-      { onAgent: handlers.onAgent, onToolEvent: handlers.onTool, onChart: handlers.onChart },
+      { onAgent: handlers.onAgent, onToolEvent: handlers.onTool },
       signal,
     );
     recordToolCall({

@@ -1,4 +1,4 @@
-import type { AgentEvent, ChartSpec, PendingOrderView, ToolEvent } from "@nomo/shared";
+import type { AgentEvent, PendingOrderView, ToolEvent } from "@nomo/shared";
 import { isAgentEnabled } from "../db/settings.js";
 import { finalizeProposal } from "./proposal.js";
 import { runSpecialist, SPECIALISTS } from "./specialist.js";
@@ -21,7 +21,6 @@ const STOPWORDS = new Set(["I", "A", "THE", "BUY", "SELL", "USD", "EPS", "CEO", 
 export interface OrchestratorSink {
   onAgent?: (event: AgentEvent) => void;
   onToolEvent?: (event: ToolEvent) => void;
-  onChart?: (spec: ChartSpec) => void;
 }
 
 export interface OrchestratorResult {
@@ -101,8 +100,11 @@ export async function runResearch(
   const outcomes = await Promise.all(
     plan.map(async ({ def, task }) => {
       sink.onAgent?.({ name: def.name, phase: "start" });
+      // Specialists never surface charts to the user: rendering is the main
+      // assistant's job. Forwarding them here produced a duplicate chart
+      // whenever the answer also rendered one. onChart is deliberately omitted.
       const outcome = await withTimeout(def, signal, (agentSignal) =>
-        runSpecialist(def, task, { onToolEvent: sink.onToolEvent, onChart: sink.onChart }, agentSignal),
+        runSpecialist(def, task, { onToolEvent: sink.onToolEvent }, agentSignal),
       );
       sink.onAgent?.({ name: def.name, phase: "end", ok: outcome.findings !== null });
       costs.push({ agent: def.name, costUsd: outcome.costUsd });
