@@ -13,6 +13,7 @@ export type {
   ChatErrorCode,
   ChatStreamEvent,
   ToolEvent,
+  AgentEvent,
   UsageEvent,
 } from "./chat.js";
 
