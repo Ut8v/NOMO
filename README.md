@@ -16,51 +16,38 @@ This app connects to a real brokerage account and can place real orders after yo
 ## How it works
 
 ```mermaid
-flowchart TB
-    subgraph BROWSER["Browser · React + Vite"]
-        UI["Chat UI"]
-        CARD["Confirmation cards · charts · activity lanes"]
-    end
+flowchart TD
+    UI["Chat UI · React"]
+    LOOP["Chat loop<br/>Anthropic tool use"]
+    UI <-->|"SSE"| LOOP
 
-    subgraph SERVER["Express backend · TypeScript"]
-        LOOP["Chat loop (Anthropic tool use)"]
-        REG{{"Tool registry (tiered)"}}
-        ORCH["Research orchestrator"]
-        SPEC["Specialist agents<br/>screener · technicals · fundamentals<br/>portfolio-risk · options"]
-        SYN["Synthesis"]
-        SKEP["Risk-skeptic"]
-        GATE[["Confirmation gate"]]
-    end
-
-    subgraph EXT["External services"]
-        ANTH["Anthropic API"]
-        RH["Robinhood Trading MCP"]
-        POLY["Polygon REST"]
-    end
-
-    DB[("SQLite<br/>credentials · audit_log · pending_orders<br/>memories · usage · conversations")]
-
-    UI <-->|"SSE stream"| LOOP
-    LOOP --> ANTH
-    LOOP --> REG
-    REG -->|"auto-run reads"| RH
-    REG -->|"charts / OHLCV"| POLY
+    LOOP -->|"quote · chart · reads"| REG["Tiered tool registry<br/>reads run automatically"]
     LOOP -->|"deep_research"| ORCH
-    ORCH --> SPEC --> SYN --> SKEP
-    SPEC -->|"read tools only"| RH
-    SPEC --> POLY
-    SYN -->|"simulate (review_equity_order)"| RH
+
+    subgraph RESEARCH["Multi-agent research · read-only"]
+        direction LR
+        ORCH["Orchestrator"] --> SPEC["Specialists<br/>parallel"] --> SYN["Synthesis"] --> SKEP["Risk-skeptic"]
+    end
+
+    REG --> DATA[("Robinhood MCP · Polygon<br/>market & account data")]
+    SPEC --> DATA
+    SYN -->|"simulate order"| DATA
+
+    REG -->|"execution tool"| GATE
     SYN -->|"proposal"| GATE
     SKEP -->|"bear case"| GATE
-    REG -->|"execution tool"| GATE
-    GATE -->|"PendingOrder<br/>awaiting confirmation"| CARD
-    CARD -->|"user confirms"| GATE
-    GATE ==>|"only path to broker:<br/>confirmed order"| RH
-    LOOP --- DB
-    GATE --- DB
+    GATE[["Confirmation gate<br/>PendingOrder · 5 min expiry"]]
+
+    GATE --> CARD["Confirmation card<br/>thesis · bear case · broker warnings"]
+    CARD ==>|"Confirm"| BROKER["Robinhood broker<br/>place / cancel"]
+    CARD -.->|"Reject / expire"| X(["discarded"])
+
+    SQLITE[("SQLite<br/>audit · orders · memories · usage")]
+    LOOP -.- SQLITE
+    GATE -.- SQLITE
 ```
 
-The one hard rule the diagram encodes: no path reaches the broker except a confirmed `PendingOrder` through the gate. Specialists, synthesis, and the skeptic hold read and simulation tools only.
+The one hard rule the diagram encodes: no path reaches the broker except a confirmed `PendingOrder` you approve on the card (the thick Confirm edge). Specialists, synthesis, and the skeptic hold read and simulation tools only.
 
 The core principle: the LLM interprets and decides, deterministic code computes and executes.
 
