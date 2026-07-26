@@ -61,6 +61,11 @@ const TOOL_TIERS: Record<string, ToolTier> = {
   get_scans: "portfolio_read",
   get_scanner_filter_specs: "portfolio_read",
   run_scan: "portfolio_read",
+  // Order simulation. Previews an order and returns pre-trade warnings; it
+  // places nothing and moves no money, so it reads at portfolio_read. The
+  // synthesis step relies on this to simulate before any pending order.
+  review_equity_order: "portfolio_read",
+  review_option_order: "portfolio_read",
   // Account changes: reversible, no money moves. Auto-run, toggleable.
   create_watchlist: "account_write",
   update_watchlist: "account_write",

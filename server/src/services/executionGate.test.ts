@@ -276,9 +276,11 @@ test("discovery registers read and account_write tools, never order tools", asyn
   assert.equal(byName.get("get_equity_positions"), "portfolio_read");
   assert.equal(byName.get("add_to_watchlist"), "account_write");
   assert.equal(byName.get("create_scan"), "account_write");
+  // Order simulation is a read: it previews and moves no money.
+  assert.equal(byName.get("review_equity_order"), "portfolio_read");
 
   // Money-moving order tools must never be registered as model tools.
-  for (const orderTool of ["place_equity_order", "cancel_equity_order", "review_equity_order", "place_option_order"]) {
+  for (const orderTool of ["place_equity_order", "cancel_equity_order", "place_option_order", "cancel_option_order"]) {
     assert.equal(byName.has(orderTool), false, `${orderTool} must not be a model tool`);
   }
   robinhoodMcp.unregisterRobinhoodTools();
