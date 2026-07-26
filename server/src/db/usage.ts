@@ -8,13 +8,15 @@ export interface UsageRecord {
   cacheReadTokens: number;
   cacheCreationTokens: number;
   costUsd: number;
+  /** Sub-agent this spend belongs to, if part of orchestrated research. */
+  agent?: string;
 }
 
 export function recordUsage(usage: UsageRecord): void {
   getDb()
     .prepare(
-      `INSERT INTO usage_events (model, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, cost_usd)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO usage_events (model, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, cost_usd, agent)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       usage.model,
@@ -23,6 +25,7 @@ export function recordUsage(usage: UsageRecord): void {
       usage.cacheReadTokens,
       usage.cacheCreationTokens,
       usage.costUsd,
+      usage.agent ?? null,
     );
 }
 

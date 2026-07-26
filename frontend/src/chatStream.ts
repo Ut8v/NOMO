@@ -1,10 +1,11 @@
-import type { ChartSpec, ChatRequest, ChatStreamEvent, PendingOrderView, ToolEvent, UsageEvent } from "@nomo/shared";
+import type { AgentEvent, ChartSpec, ChatRequest, ChatStreamEvent, PendingOrderView, ToolEvent, UsageEvent } from "@nomo/shared";
 
 export interface ChatStreamHandlers {
   onText: (text: string) => void;
   onChart: (spec: ChartSpec) => void;
   onPendingOrder: (order: PendingOrderView) => void;
   onTool: (event: ToolEvent) => void;
+  onAgent: (event: AgentEvent) => void;
   onUsage: (usage: UsageEvent) => void;
   onError: (code: string, message: string) => void;
   onDone: () => void;
@@ -55,6 +56,8 @@ export async function streamChat(
       handlers.onPendingOrder(event.order);
     } else if (event.type === "tool") {
       handlers.onTool(event.event);
+    } else if (event.type === "agent") {
+      handlers.onAgent(event.event);
     } else if (event.type === "usage") {
       handlers.onUsage(event.usage);
     } else if (event.type === "done") {

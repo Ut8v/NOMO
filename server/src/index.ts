@@ -4,6 +4,7 @@ import { ensureSearchIndex } from "./db/search.js";
 import { registerMarketDataTools } from "./tools/marketData.js";
 import { registerExecutionTools } from "./tools/executionTools.js";
 import { registerLearningTools } from "./tools/learningTools.js";
+import { registerResearchTool } from "./tools/researchTool.js";
 import { resumeLinkIfPresent } from "./services/robinhoodMcp.js";
 import { createApp } from "./app.js";
 
@@ -12,6 +13,7 @@ ensureSearchIndex();
 registerMarketDataTools();
 registerExecutionTools();
 registerLearningTools();
+registerResearchTool();
 resumeLinkIfPresent();
 
 const app = createApp();

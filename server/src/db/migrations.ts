@@ -188,6 +188,36 @@ const migrations: Migration[] = [
       );
     `,
   },
+  {
+    id: 10,
+    name: "audit-log-agent",
+    // Names the sub-agent that made a tool call during orchestrated research,
+    // NULL for the main chat loop and every pre-Phase-8 row.
+    sql: `
+      ALTER TABLE audit_log ADD COLUMN agent TEXT;
+    `,
+  },
+  {
+    id: 11,
+    name: "usage-events-agent",
+    // Attributes token spend to a sub-agent so per-agent cost can be reported.
+    sql: `
+      ALTER TABLE usage_events ADD COLUMN agent TEXT;
+    `,
+  },
+  {
+    id: 12,
+    name: "pending-order-research-context",
+    // Orchestrated proposals carry the synthesis thesis, the skeptic's bear
+    // case, and Robinhood's pre-trade warnings from the mandatory simulation.
+    // All NULL for directly proposed orders, which is why they are added, not
+    // required. The confirmation gate never reads these columns.
+    sql: `
+      ALTER TABLE pending_orders ADD COLUMN thesis TEXT;
+      ALTER TABLE pending_orders ADD COLUMN bear_case TEXT;
+      ALTER TABLE pending_orders ADD COLUMN broker_warnings TEXT;
+    `,
+  },
 ];
 
 export function runMigrations(db: Database): void {

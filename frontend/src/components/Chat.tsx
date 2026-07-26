@@ -11,7 +11,7 @@ import {
 } from "../api";
 import { streamChat } from "../chatStream";
 import ActivityPanel from "./ActivityPanel";
-import type { ToolActivity } from "./ActivityPanel";
+import type { AgentActivity, ToolActivity } from "./ActivityPanel";
 import AssistantText from "./AssistantText";
 import ChartBlock from "./ChartBlock";
 import ChatInput from "./ChatInput";
@@ -36,6 +36,8 @@ export interface UiMessage {
   blocks: MessageBlock[];
   /** Live tool-call activity for an assistant turn; not persisted. */
   activity?: ToolActivity[];
+  /** Live research sub-agent lanes for an assistant turn; not persisted. */
+  agents?: AgentActivity[];
 }
 
 function formatCost(usd: number): string {
@@ -87,6 +89,7 @@ function requestWindow(history: UiMessage[]): ChatMessage[] {
 function hasContent(message: UiMessage): boolean {
   return (
     (message.activity?.length ?? 0) > 0 ||
+    (message.agents?.length ?? 0) > 0 ||
     message.blocks.some((block) => block.kind !== "text" || block.text.length > 0)
   );
 }
@@ -164,7 +167,7 @@ export default function Chat({ onOpenSettings }: Props) {
       if (!content || streaming) return;
 
       const history: UiMessage[] = [...messages, { role: "user", blocks: [{ kind: "text", text: content }] }];
-      setMessages([...history, { role: "assistant", blocks: [], activity: [] }]);
+      setMessages([...history, { role: "assistant", blocks: [], activity: [], agents: [] }]);
       setDraft("");
       setFault(null);
       setStreaming(true);
@@ -187,6 +190,18 @@ export default function Chat({ onOpenSettings }: Props) {
           const last = next[next.length - 1];
           if (last && last.role === "assistant") {
             next[next.length - 1] = { ...last, activity: update(last.activity ?? []) };
+          }
+          return next;
+        });
+      };
+
+      // Track research sub-agent lanes on the streaming assistant message.
+      const updateAgents = (update: (agents: AgentActivity[]) => AgentActivity[]) => {
+        setMessages((current) => {
+          const next = [...current];
+          const last = next[next.length - 1];
+          if (last && last.role === "assistant") {
+            next[next.length - 1] = { ...last, agents: update(last.agents ?? []) };
           }
           return next;
         });
@@ -232,10 +247,20 @@ export default function Chat({ onOpenSettings }: Props) {
             onTool: (event) =>
               updateActivity((activity) => {
                 if (event.phase === "start") {
-                  return [...activity, { id: event.id, name: event.name, status: "running" }];
+                  return [...activity, { id: event.id, name: event.name, status: "running", agent: event.agent }];
                 }
                 return activity.map((a) =>
                   a.id === event.id ? { ...a, status: event.ok ? "done" : "error" } : a,
+                );
+              }),
+            onAgent: (event) =>
+              updateAgents((agents) => {
+                if (event.phase === "start") {
+                  if (agents.some((a) => a.name === event.name)) return agents;
+                  return [...agents, { name: event.name, status: "running" }];
+                }
+                return agents.map((a) =>
+                  a.name === event.name ? { ...a, status: event.ok ? "done" : "error" } : a,
                 );
               }),
             onUsage: (usage) => setTotalCostUsd(usage.total.costUsd),
@@ -387,12 +412,14 @@ export default function Chat({ onOpenSettings }: Props) {
         )}
         {messages.map((message, index) => (
           <div key={index} className={`bubble bubble-${message.role}`}>
-            {message.role === "assistant" && message.activity && message.activity.length > 0 && (
-              <ActivityPanel
-                activities={message.activity}
-                active={streaming && index === lastIndex}
-              />
-            )}
+            {message.role === "assistant" &&
+              ((message.activity?.length ?? 0) > 0 || (message.agents?.length ?? 0) > 0) && (
+                <ActivityPanel
+                  activities={message.activity ?? []}
+                  agents={message.agents ?? []}
+                  active={streaming && index === lastIndex}
+                />
+              )}
             {message.blocks.map((block, blockIndex) => {
               if (block.kind === "text") {
                 return message.role === "assistant" ? (

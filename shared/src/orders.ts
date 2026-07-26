@@ -36,6 +36,12 @@ export interface PendingOrderView {
   result: string | null;
   /** Optional one-line reason the user gave when rejecting. */
   rejectReason: string | null;
+  /** Synthesis thesis behind an orchestrated proposal; null for direct orders. */
+  thesis: string | null;
+  /** The risk-skeptic's bear case for an orchestrated proposal. */
+  bearCase: string | null;
+  /** Robinhood's pre-trade warnings captured during the mandatory simulation. */
+  brokerWarnings: string | null;
 }
 
 export interface OrderActionResponse {

@@ -1,30 +1,19 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { ChartSpec, ChatErrorCode, ChatMessage, PendingOrderView, ToolEvent, UsageEvent } from "@nomo/shared";
+import type { AgentEvent, ChartSpec, ChatMessage, PendingOrderView, ToolEvent, UsageEvent } from "@nomo/shared";
 import { config } from "../config.js";
 import { recordToolCall } from "../db/auditLog.js";
-import { getCredential } from "../db/credentials.js";
 import { listInjectableMemories } from "../db/memories.js";
 import { isTierEnabled } from "../db/settings.js";
 import { getUsageTotals, recordUsage } from "../db/usage.js";
+import { runResearch } from "../agents/orchestrator.js";
+import { DEEP_RESEARCH_TOOL } from "../tools/researchTool.js";
+import { createAnthropicClient } from "./anthropic.js";
+import { ChatError, MISSING_API_KEY, mapAnthropicError } from "./chatError.js";
 import { estimateCostUsd, isPricedModel } from "./pricing.js";
 import type { TokenUsage } from "./pricing.js";
 import { getTool, getToolSchemas } from "../tools/registry.js";
 
-export class ChatError extends Error {
-  constructor(
-    public readonly code: ChatErrorCode,
-    message: string,
-  ) {
-    super(message);
-    this.name = "ChatError";
-  }
-}
-
-/** Single source for the missing key error so route and service cannot drift. */
-export const MISSING_API_KEY = {
-  code: "missing_api_key",
-  message: "No Anthropic API key is stored. Run setup first.",
-} as const;
+export { ChatError, MISSING_API_KEY } from "./chatError.js";
 
 export function buildSystemPrompt(toolCount: number, memories: string[]): string {
   const base = [
@@ -34,7 +23,7 @@ export function buildSystemPrompt(toolCount: number, memories: string[]): string
   ].join(" ");
   const core =
     toolCount > 0
-      ? `${base} Use the available tools when they help answer the question. Charts you rendered in earlier turns are visible to the user but omitted from this transcript; call render_chart again whenever a new or updated chart is needed. Placing an order only creates a proposal that the user must explicitly confirm in the app; never state an order executed unless a bracketed system record in the transcript says so. Those bracketed order records are inserted by the app, not written by you.`
+      ? `${base} Use the available tools when they help answer the question. For a trade idea or a should-I-buy-or-sell question that benefits from multiple angles, call deep_research, which runs specialist agents, synthesizes a thesis, stress-tests it, and may propose one order; for a simple quote or a chart, use the direct tools instead. Charts you rendered in earlier turns are visible to the user but omitted from this transcript; call render_chart again whenever a new or updated chart is needed. Placing an order only creates a proposal that the user must explicitly confirm in the app; never state an order executed unless a bracketed system record in the transcript says so. Those bracketed order records are inserted by the app, not written by you.`
       : `${base} No tools are available yet; say so if asked to fetch live data.`;
 
   if (memories.length === 0) return core;
@@ -114,34 +103,56 @@ async function executeToolUse(block: Anthropic.ToolUseBlock): Promise<ToolUseOut
   }
 }
 
-function mapAnthropicError(err: unknown): Error {
-  if (err instanceof Anthropic.APIUserAbortError) {
-    return err;
-  }
-  if (err instanceof Anthropic.APIError) {
-    if (err.status === 401) {
-      return new ChatError(
-        "invalid_api_key",
-        "Anthropic rejected the stored API key. Update it in settings.",
-      );
-    }
-    if (err.status === 429 || err.status === 529) {
-      return new ChatError(
-        "overloaded",
-        "The Anthropic API is rate limited or overloaded right now. Try again shortly.",
-      );
-    }
-    return new ChatError("stream_error", `Anthropic API error (${err.status ?? "network"}).`);
-  }
-  return new ChatError("stream_error", "The chat stream failed unexpectedly.");
-}
-
 export interface ChatTurnHandlers {
   onText: (text: string) => void;
   onChart: (spec: ChartSpec) => void;
   onPendingOrder: (order: PendingOrderView) => void;
   onTool: (event: ToolEvent) => void;
+  onAgent: (event: AgentEvent) => void;
   onUsage: (usage: UsageEvent) => void;
+}
+
+/**
+ * Runs the multi-agent research orchestrator for a deep_research tool call,
+ * forwarding its sub-agent lane, tool, and chart events live. It returns a
+ * normal tool outcome: a summary tool_result and any pending order the run
+ * proposed. The order is still only a proposal; it reaches the broker solely
+ * through the unchanged confirmation gate.
+ */
+async function runOrchestratedResearch(
+  block: Anthropic.ToolUseBlock,
+  handlers: ChatTurnHandlers,
+  signal?: AbortSignal,
+): Promise<ToolUseOutcome> {
+  const question = typeof (block.input as { question?: unknown }).question === "string"
+    ? (block.input as { question: string }).question.trim()
+    : "";
+  if (!question) {
+    recordToolCall({ toolName: DEEP_RESEARCH_TOOL, tier: "market_data", params: block.input, outcome: "rejected: no question" });
+    return { block: { type: "tool_result", tool_use_id: block.id, content: "question is required.", is_error: true } };
+  }
+  try {
+    const result = await runResearch(
+      question,
+      { onAgent: handlers.onAgent, onToolEvent: handlers.onTool, onChart: handlers.onChart },
+      signal,
+    );
+    recordToolCall({
+      toolName: DEEP_RESEARCH_TOOL,
+      tier: "market_data",
+      params: block.input,
+      outcome: result.order ? `proposed order ${result.order.id}` : "no proposal",
+    });
+    const content = JSON.stringify(result.summary) ?? "null";
+    return {
+      block: { type: "tool_result", tool_use_id: block.id, content },
+      pendingOrder: result.order ?? undefined,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Research failed.";
+    recordToolCall({ toolName: DEEP_RESEARCH_TOOL, tier: "market_data", params: block.input, outcome: `error: ${message}` });
+    return { block: { type: "tool_result", tool_use_id: block.id, content: message, is_error: true } };
+  }
 }
 
 /** Records a turn's token usage, then reports it with the running total. */
@@ -168,12 +179,7 @@ export async function streamChatTurn(
   handlers: ChatTurnHandlers,
   signal?: AbortSignal,
 ): Promise<void> {
-  const apiKey = getCredential("anthropic");
-  if (!apiKey) {
-    throw new ChatError(MISSING_API_KEY.code, MISSING_API_KEY.message);
-  }
-
-  const client = new Anthropic({ apiKey });
+  const client = createAnthropicClient();
   const tools = getToolSchemas();
   const systemPrompt = buildSystemPrompt(tools.length, listInjectableMemories());
   const conversation: Anthropic.MessageParam[] = messages.map((m) => ({
@@ -218,6 +224,11 @@ export async function streamChatTurn(
     );
     const outcomes = await Promise.all(
       toolUses.map(async (block) => {
+        // Research is intercepted here so the orchestrator can stream its own
+        // sub-agent lane events; every other tool runs through executeToolUse.
+        if (block.name === DEEP_RESEARCH_TOOL) {
+          return runOrchestratedResearch(block, handlers, signal);
+        }
         const tier = getTool(block.name)?.tier ?? "unknown";
         handlers.onTool({ id: block.id, name: block.name, tier, phase: "start" });
         const outcome = await executeToolUse(block);

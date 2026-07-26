@@ -48,6 +48,17 @@ export interface ToolEvent {
   phase: "start" | "end";
   /** Present on the end phase. */
   ok?: boolean;
+  /** Sub-agent lane this call belongs to during orchestrated research. */
+  agent?: string;
+}
+
+/** A research sub-agent lane starting or finishing during orchestrated work. */
+export interface AgentEvent {
+  /** Lane id, e.g. technicals, fundamentals, synthesis, skeptic. */
+  name: string;
+  phase: "start" | "end";
+  /** Present on the end phase: whether the agent produced a usable result. */
+  ok?: boolean;
 }
 
 /** Events sent over the SSE chat stream, one JSON object per data line. */
@@ -56,6 +67,7 @@ export type ChatStreamEvent =
   | { type: "chart"; spec: ChartSpec }
   | { type: "pending_order"; order: PendingOrderView }
   | { type: "tool"; event: ToolEvent }
+  | { type: "agent"; event: AgentEvent }
   | { type: "usage"; usage: UsageEvent }
   | { type: "done" }
   | { type: "error"; code: ChatErrorCode; message: string };

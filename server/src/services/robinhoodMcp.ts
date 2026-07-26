@@ -6,6 +6,7 @@ import { auth, UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.j
 import type Anthropic from "@anthropic-ai/sdk";
 import type { PendingOrderView } from "@nomo/shared";
 import { config } from "../config.js";
+import { recordToolCall } from "../db/auditLog.js";
 import { registerTool, unregisterTool } from "../tools/registry.js";
 import type { ToolTier } from "../tools/registry.js";
 import { RobinhoodOAuthProvider } from "./robinhoodAuth.js";
@@ -61,6 +62,11 @@ const TOOL_TIERS: Record<string, ToolTier> = {
   get_scans: "portfolio_read",
   get_scanner_filter_specs: "portfolio_read",
   run_scan: "portfolio_read",
+  // Order simulation. Previews an order and returns pre-trade warnings; it
+  // places nothing and moves no money, so it reads at portfolio_read. The
+  // synthesis step relies on this to simulate before any pending order.
+  review_equity_order: "portfolio_read",
+  review_option_order: "portfolio_read",
   // Account changes: reversible, no money moves. Auto-run, toggleable.
   create_watchlist: "account_write",
   update_watchlist: "account_write",
@@ -266,6 +272,49 @@ export async function executeConfirmedOrder(order: PendingOrderView): Promise<st
 
   const ack = stringifyAck(await callRobinhoodTool("place_equity_order", args));
   return `${ack}${reviewNote}`;
+}
+
+/**
+ * Deterministic pre-trade simulation for the synthesis step. It previews an
+ * equity order via Robinhood's review tool and returns the warnings text; it
+ * places nothing. Called straight through the provider, not the registry, so a
+ * disabled tier cannot skip the mandatory simulation. Throws when review is
+ * unavailable, which the orchestrator surfaces as "no proposal created".
+ */
+export async function simulateEquityOrder(proposal: {
+  ticker: string;
+  side: string;
+  quantity: string;
+  orderType: string;
+  limitPrice?: string | null;
+}): Promise<string> {
+  const args: Record<string, unknown> = {
+    symbol: proposal.ticker,
+    side: proposal.side,
+    quantity: proposal.quantity,
+    order_type: proposal.orderType,
+  };
+  if (proposal.orderType === "limit" && proposal.limitPrice != null) {
+    args.limit_price = proposal.limitPrice;
+  }
+
+  // This previews a live order at the broker on synthesis's behalf, so it is
+  // audited like every other tool call, tagged to the synthesis agent.
+  if (!availableToolNames.has("review_equity_order")) {
+    recordToolCall({ toolName: "review_equity_order", tier: "portfolio_read", params: args, outcome: "unavailable: not linked", agent: "synthesis" });
+    throw new Error(
+      "Order simulation is unavailable: Robinhood is not linked or does not expose review_equity_order.",
+    );
+  }
+  try {
+    const review = stringifyAck(await callRobinhoodTool("review_equity_order", args));
+    recordToolCall({ toolName: "review_equity_order", tier: "portfolio_read", params: args, outcome: "ok", agent: "synthesis" });
+    return review;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "review failed";
+    recordToolCall({ toolName: "review_equity_order", tier: "portfolio_read", params: args, outcome: `error: ${message}`, agent: "synthesis" });
+    throw err;
+  }
 }
 
 export function unregisterRobinhoodTools(): void {
