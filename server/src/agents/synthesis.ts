@@ -23,8 +23,9 @@ export interface ProposalDraft {
   ticker: string;
   side: "buy" | "sell";
   quantity: number;
-  orderType: "market" | "limit";
+  orderType: "market" | "limit" | "stop_market" | "stop_limit";
   limitPrice?: number | null;
+  stopPrice?: number | null;
 }
 
 export interface SynthesisResult {
@@ -57,8 +58,9 @@ const EMIT_SYNTHESIS_TOOL: Anthropic.Tool = {
           ticker: { type: "string" },
           side: { type: "string", enum: ["buy", "sell"] },
           quantity: { type: "number" },
-          order_type: { type: "string", enum: ["market", "limit"] },
-          limit_price: { type: "number", description: "Required for limit orders." },
+          order_type: { type: "string", enum: ["market", "limit", "stop_market", "stop_limit"] },
+          limit_price: { type: "number", description: "Required for limit and stop_limit orders." },
+          stop_price: { type: "number", description: "Trigger price; required for stop_market and stop_limit orders." },
         },
         required: ["ticker", "side", "quantity", "order_type"],
       },
@@ -95,6 +97,8 @@ function renderFindings(findings: Array<{ agent: string; findings: Findings | nu
     .join("\n\n");
 }
 
+const DRAFT_TYPES = ["market", "limit", "stop_market", "stop_limit"];
+
 function parseProposalDraft(raw: unknown): ProposalDraft | null {
   if (raw === null || raw === undefined) return null;
   if (typeof raw !== "object") return null;
@@ -102,10 +106,15 @@ function parseProposalDraft(raw: unknown): ProposalDraft | null {
   if (typeof p.ticker !== "string" || !p.ticker.trim()) return null;
   if (p.side !== "buy" && p.side !== "sell") return null;
   if (typeof p.quantity !== "number" || !Number.isFinite(p.quantity) || p.quantity <= 0) return null;
-  if (p.order_type !== "market" && p.order_type !== "limit") return null;
+  if (typeof p.order_type !== "string" || !DRAFT_TYPES.includes(p.order_type)) return null;
+  const orderType = p.order_type as ProposalDraft["orderType"];
   const limitPrice = typeof p.limit_price === "number" ? p.limit_price : null;
-  if (p.order_type === "limit" && (limitPrice === null || limitPrice <= 0)) return null;
-  return { ticker: p.ticker.trim().toUpperCase(), side: p.side, quantity: p.quantity, orderType: p.order_type, limitPrice };
+  const stopPrice = typeof p.stop_price === "number" ? p.stop_price : null;
+  const needsLimit = orderType === "limit" || orderType === "stop_limit";
+  const needsStop = orderType === "stop_market" || orderType === "stop_limit";
+  if (needsLimit && (limitPrice === null || limitPrice <= 0)) return null;
+  if (needsStop && (stopPrice === null || stopPrice <= 0)) return null;
+  return { ticker: p.ticker.trim().toUpperCase(), side: p.side, quantity: p.quantity, orderType, limitPrice, stopPrice };
 }
 
 async function dispatchSynthesisTool(

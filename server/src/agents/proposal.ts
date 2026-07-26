@@ -30,6 +30,7 @@ export async function finalizeProposal(
       quantity: String(proposal.quantity),
       orderType: proposal.orderType,
       limitPrice: proposal.limitPrice != null ? String(proposal.limitPrice) : null,
+      stopPrice: proposal.stopPrice != null ? String(proposal.stopPrice) : null,
     });
   } catch (err) {
     return { order: null, error: err instanceof Error ? err.message : "Order simulation failed." };
