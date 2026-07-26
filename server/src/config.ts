@@ -24,6 +24,9 @@ export const config = {
   port: Number(process.env.PORT) || 3001,
   host,
   anthropicModel: process.env.ANTHROPIC_MODEL || "claude-sonnet-5",
+  // Research specialists run on a cheaper model; synthesis and the skeptic use
+  // the stronger anthropicModel above. Both go through the same provider layer.
+  anthropicSpecialistModel: process.env.ANTHROPIC_SPECIALIST_MODEL || "claude-haiku-4-5",
   // Base URL overrides exist so tests can point at mock providers; the
   // Anthropic SDK reads ANTHROPIC_BASE_URL itself, this copy is for the
   // places that call fetch directly.

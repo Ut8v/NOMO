@@ -1,30 +1,17 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { ChartSpec, ChatErrorCode, ChatMessage, PendingOrderView, ToolEvent, UsageEvent } from "@nomo/shared";
+import type { ChartSpec, ChatMessage, PendingOrderView, ToolEvent, UsageEvent } from "@nomo/shared";
 import { config } from "../config.js";
 import { recordToolCall } from "../db/auditLog.js";
-import { getCredential } from "../db/credentials.js";
 import { listInjectableMemories } from "../db/memories.js";
 import { isTierEnabled } from "../db/settings.js";
 import { getUsageTotals, recordUsage } from "../db/usage.js";
+import { createAnthropicClient } from "./anthropic.js";
+import { ChatError, MISSING_API_KEY, mapAnthropicError } from "./chatError.js";
 import { estimateCostUsd, isPricedModel } from "./pricing.js";
 import type { TokenUsage } from "./pricing.js";
 import { getTool, getToolSchemas } from "../tools/registry.js";
 
-export class ChatError extends Error {
-  constructor(
-    public readonly code: ChatErrorCode,
-    message: string,
-  ) {
-    super(message);
-    this.name = "ChatError";
-  }
-}
-
-/** Single source for the missing key error so route and service cannot drift. */
-export const MISSING_API_KEY = {
-  code: "missing_api_key",
-  message: "No Anthropic API key is stored. Run setup first.",
-} as const;
+export { ChatError, MISSING_API_KEY } from "./chatError.js";
 
 export function buildSystemPrompt(toolCount: number, memories: string[]): string {
   const base = [
@@ -114,28 +101,6 @@ async function executeToolUse(block: Anthropic.ToolUseBlock): Promise<ToolUseOut
   }
 }
 
-function mapAnthropicError(err: unknown): Error {
-  if (err instanceof Anthropic.APIUserAbortError) {
-    return err;
-  }
-  if (err instanceof Anthropic.APIError) {
-    if (err.status === 401) {
-      return new ChatError(
-        "invalid_api_key",
-        "Anthropic rejected the stored API key. Update it in settings.",
-      );
-    }
-    if (err.status === 429 || err.status === 529) {
-      return new ChatError(
-        "overloaded",
-        "The Anthropic API is rate limited or overloaded right now. Try again shortly.",
-      );
-    }
-    return new ChatError("stream_error", `Anthropic API error (${err.status ?? "network"}).`);
-  }
-  return new ChatError("stream_error", "The chat stream failed unexpectedly.");
-}
-
 export interface ChatTurnHandlers {
   onText: (text: string) => void;
   onChart: (spec: ChartSpec) => void;
@@ -168,12 +133,7 @@ export async function streamChatTurn(
   handlers: ChatTurnHandlers,
   signal?: AbortSignal,
 ): Promise<void> {
-  const apiKey = getCredential("anthropic");
-  if (!apiKey) {
-    throw new ChatError(MISSING_API_KEY.code, MISSING_API_KEY.message);
-  }
-
-  const client = new Anthropic({ apiKey });
+  const client = createAnthropicClient();
   const tools = getToolSchemas();
   const systemPrompt = buildSystemPrompt(tools.length, listInjectableMemories());
   const conversation: Anthropic.MessageParam[] = messages.map((m) => ({
