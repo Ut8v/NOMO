@@ -188,6 +188,23 @@ const migrations: Migration[] = [
       );
     `,
   },
+  {
+    id: 10,
+    name: "audit-log-agent",
+    // Names the sub-agent that made a tool call during orchestrated research,
+    // NULL for the main chat loop and every pre-Phase-8 row.
+    sql: `
+      ALTER TABLE audit_log ADD COLUMN agent TEXT;
+    `,
+  },
+  {
+    id: 11,
+    name: "usage-events-agent",
+    // Attributes token spend to a sub-agent so per-agent cost can be reported.
+    sql: `
+      ALTER TABLE usage_events ADD COLUMN agent TEXT;
+    `,
+  },
 ];
 
 export function runMigrations(db: Database): void {
