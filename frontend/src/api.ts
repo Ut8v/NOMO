@@ -7,6 +7,8 @@ import type {
   SaveKeysRequest,
   SaveKeysResponse,
   StoredMessage,
+  TablePage,
+  TableSummary,
   UsageTotals,
 } from "@nomo/shared";
 
@@ -176,5 +178,17 @@ export async function distillLessons(): Promise<{ created: number; note: string 
 export async function fetchUsageTotals(): Promise<UsageTotals> {
   const res = await fetch("/api/usage");
   if (!res.ok) throw new Error(`Failed to load usage (${res.status})`);
+  return res.json();
+}
+
+export async function fetchDbTables(): Promise<TableSummary[]> {
+  const res = await fetch("/api/admin/tables");
+  if (!res.ok) throw new Error(`Failed to load tables (${res.status})`);
+  return res.json();
+}
+
+export async function fetchDbTable(name: string, limit: number, offset: number): Promise<TablePage> {
+  const res = await fetch(`/api/admin/tables/${encodeURIComponent(name)}?limit=${limit}&offset=${offset}`);
+  if (!res.ok) throw new Error(`Failed to load table ${name} (${res.status})`);
   return res.json();
 }
