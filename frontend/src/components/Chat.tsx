@@ -118,6 +118,20 @@ export default function Chat({ onOpenSettings, onOpenDatabase }: Props) {
   const [totalCostUsd, setTotalCostUsd] = useState<number | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  // True while the viewport is pinned to the bottom. Streaming updates only
+  // auto-scroll when this holds, so scrolling up during generation stays put.
+  const atBottomRef = useRef(true);
+
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    atBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  }, []);
+
+  const scrollToBottom = useCallback(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight });
+  }, []);
 
   const refreshList = useCallback(async () => {
     setConversations(await listConversations().catch(() => []));
@@ -146,8 +160,8 @@ export default function Chat({ onOpenSettings, onOpenDatabase }: Props) {
   }, []);
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-  }, [messages]);
+    if (atBottomRef.current) scrollToBottom();
+  }, [messages, scrollToBottom]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -167,6 +181,8 @@ export default function Chat({ onOpenSettings, onOpenDatabase }: Props) {
       const content = text.trim();
       if (!content || streaming) return;
 
+      // Sending is an explicit intent to see the new turn: re-pin to the bottom.
+      atBottomRef.current = true;
       const history: UiMessage[] = [...messages, { role: "user", blocks: [{ kind: "text", text: content }] }];
       setMessages([...history, { role: "assistant", blocks: [], activity: [], agents: [] }]);
       setDraft("");
@@ -303,6 +319,7 @@ export default function Chat({ onOpenSettings, onOpenDatabase }: Props) {
 
   const newChat = useCallback(() => {
     abortRef.current?.abort();
+    atBottomRef.current = true;
     setMessages([]);
     setConversationId(null);
     setFault(null);
@@ -312,6 +329,7 @@ export default function Chat({ onOpenSettings, onOpenDatabase }: Props) {
 
   const openConversation = useCallback(async (id: string) => {
     abortRef.current?.abort();
+    atBottomRef.current = true;
     setStreaming(false);
     setFault(null);
     const detail = await getConversation(id).catch(() => null);
@@ -408,7 +426,7 @@ export default function Chat({ onOpenSettings, onOpenDatabase }: Props) {
           </div>
         </header>
 
-        <div className="chat-messages" ref={scrollRef}>
+        <div className="chat-messages" ref={scrollRef} onScroll={handleScroll}>
         {messages.length === 0 && (
           <p className="muted chat-empty">
             Ask about markets or request a chart, like a 3 month daily chart of AAPL with the 20 EMA.
