@@ -64,3 +64,8 @@ export type {
 } from "./findings.js";
 
 export { parseFindings } from "./findings.js";
+
+export type {
+  TableSummary,
+  TablePage,
+} from "./admin.js";
