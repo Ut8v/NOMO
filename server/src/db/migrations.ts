@@ -205,6 +205,19 @@ const migrations: Migration[] = [
       ALTER TABLE usage_events ADD COLUMN agent TEXT;
     `,
   },
+  {
+    id: 12,
+    name: "pending-order-research-context",
+    // Orchestrated proposals carry the synthesis thesis, the skeptic's bear
+    // case, and Robinhood's pre-trade warnings from the mandatory simulation.
+    // All NULL for directly proposed orders, which is why they are added, not
+    // required. The confirmation gate never reads these columns.
+    sql: `
+      ALTER TABLE pending_orders ADD COLUMN thesis TEXT;
+      ALTER TABLE pending_orders ADD COLUMN bear_case TEXT;
+      ALTER TABLE pending_orders ADD COLUMN broker_warnings TEXT;
+    `,
+  },
 ];
 
 export function runMigrations(db: Database): void {

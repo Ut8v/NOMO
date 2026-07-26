@@ -26,6 +26,9 @@ interface PendingOrderRow {
   resolved_at: string | null;
   result: string | null;
   reject_reason: string | null;
+  thesis: string | null;
+  bear_case: string | null;
+  broker_warnings: string | null;
 }
 
 function toView(row: PendingOrderRow): PendingOrderView {
@@ -44,6 +47,9 @@ function toView(row: PendingOrderRow): PendingOrderView {
     expiresAt: row.expires_at,
     result: row.result,
     rejectReason: row.reject_reason,
+    thesis: row.thesis,
+    bearCase: row.bear_case,
+    brokerWarnings: row.broker_warnings,
   };
 }
 
@@ -56,6 +62,10 @@ export interface NewPendingOrder {
   limitPrice: string | null;
   brokerRef: string | null;
   rationale: string;
+  /** Research context for orchestrated proposals; omitted for direct orders. */
+  thesis?: string | null;
+  bearCase?: string | null;
+  brokerWarnings?: string | null;
 }
 
 export function createPendingOrder(order: NewPendingOrder): PendingOrderView {
@@ -63,8 +73,8 @@ export function createPendingOrder(order: NewPendingOrder): PendingOrderView {
   const expiresAt = new Date(Date.now() + EXPIRY_MS).toISOString();
   getDb()
     .prepare(
-      `INSERT INTO pending_orders (id, action, ticker, side, quantity, order_type, limit_price, broker_ref, rationale, status, expires_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'awaiting_confirmation', ?)`,
+      `INSERT INTO pending_orders (id, action, ticker, side, quantity, order_type, limit_price, broker_ref, rationale, status, expires_at, thesis, bear_case, broker_warnings)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'awaiting_confirmation', ?, ?, ?, ?)`,
     )
     .run(
       id,
@@ -77,6 +87,9 @@ export function createPendingOrder(order: NewPendingOrder): PendingOrderView {
       order.brokerRef,
       order.rationale,
       expiresAt,
+      order.thesis ?? null,
+      order.bearCase ?? null,
+      order.brokerWarnings ?? null,
     );
   return getPendingOrder(id)!;
 }
