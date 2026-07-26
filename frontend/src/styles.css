@@ -740,6 +740,35 @@ button.secondary {
   background: #5b2f31;
 }
 
+.order-research {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.9rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid #2e3442;
+}
+
+.order-research-col h4 {
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #9aa3b2;
+}
+
+.order-research-col p {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: #d3d7de;
+  white-space: pre-wrap;
+}
+
+.order-research-bear h4 {
+  color: #e0a05a;
+}
+
 .order-review {
   margin-top: 1rem;
 }

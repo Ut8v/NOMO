@@ -91,6 +91,29 @@ export default function OrderCard({ order, onResolved }: Props) {
         )}
       </dl>
 
+      {(order.thesis || order.bearCase || order.brokerWarnings) && (
+        <div className="order-research">
+          {order.thesis && (
+            <section className="order-research-col">
+              <h4>Thesis</h4>
+              <p>{order.thesis}</p>
+            </section>
+          )}
+          {order.bearCase && (
+            <section className="order-research-col order-research-bear">
+              <h4>Bear case</h4>
+              <p>{order.bearCase}</p>
+            </section>
+          )}
+          {order.brokerWarnings && (
+            <section className="order-research-col">
+              <h4>Broker pre-trade review</h4>
+              <p className="order-result">{order.brokerWarnings}</p>
+            </section>
+          )}
+        </div>
+      )}
+
       {awaiting && (
         <div className="order-review">
           <input
