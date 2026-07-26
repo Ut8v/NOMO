@@ -4,9 +4,15 @@ import {
   beginLink,
   finishLink,
   getLinkStatus,
+  listAccounts,
   oauthProvider,
   unlink,
 } from "../services/robinhoodMcp.js";
+import { getRobinhoodAccountNumber, setRobinhoodAccountNumber } from "../db/settings.js";
+
+// Robinhood account numbers are short identifiers; keep validation permissive
+// but bounded so a stored value cannot be absurd.
+const ACCOUNT_PATTERN = /^[A-Za-z0-9-]{1,40}$/;
 
 function stateMatches(received: string, expected: string): boolean {
   const a = Buffer.from(received);
@@ -61,6 +67,32 @@ robinhoodRouter.get("/callback", async (req, res) => {
   } finally {
     // State and verifier are single use regardless of outcome.
     oauthProvider.clearTransient();
+  }
+});
+
+robinhoodRouter.get("/account", (_req, res) => {
+  res.json({ accountNumber: getRobinhoodAccountNumber() });
+});
+
+robinhoodRouter.put("/account", (req, res) => {
+  const raw = (req.body as { accountNumber?: unknown } | undefined)?.accountNumber;
+  const accountNumber = typeof raw === "string" ? raw.trim() : "";
+  if (!ACCOUNT_PATTERN.test(accountNumber)) {
+    res.status(400).json({ error: "accountNumber must be a short alphanumeric account identifier." });
+    return;
+  }
+  setRobinhoodAccountNumber(accountNumber);
+  res.json({ accountNumber });
+});
+
+// Lists the linked accounts so the user can pick one in the UI. The agent never
+// selects an account on its own; this is a UI-only aid.
+robinhoodRouter.get("/accounts", async (_req, res) => {
+  try {
+    res.json({ accounts: await listAccounts() });
+  } catch (err) {
+    console.error("Failed to list Robinhood accounts:", err);
+    res.status(502).json({ error: "Could not load accounts. Make sure Robinhood is linked." });
   }
 });
 

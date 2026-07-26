@@ -35,6 +35,8 @@ before(async () => {
   proposalMod = await import("./proposal.js");
   robinhoodMcp = await import("../services/robinhoodMcp.js");
   pendingOrders = await import("../db/pendingOrders.js");
+  const settings = await import("../db/settings.js");
+  settings.setRobinhoodAccountNumber("MOCK-ACCT-1");
   await robinhoodMcp.connectAndRegisterTools();
 });
 

@@ -31,6 +31,8 @@ before(async () => {
   robinhoodMcp = await import("./robinhoodMcp.js");
   memoriesDb = await import("../db/memories.js");
   registry = await import("../tools/registry.js");
+  const settings = await import("../db/settings.js");
+  settings.setRobinhoodAccountNumber("MOCK-ACCT-1");
 });
 
 after(async () => {
@@ -85,11 +87,13 @@ test("confirm forwards exactly the stored parameters and records the ack", async
   assert.match(result.order?.result ?? "", /RH-MOCK/);
   assert.equal(mock.placedOrders.length, 1);
   assert.deepEqual(mock.placedOrders[0], {
+    account_number: "MOCK-ACCT-1",
     symbol: "TSLA",
     side: "buy",
     quantity: "2",
     type: "limit",
     limit_price: "100.5",
+    ref_id: order.id,
   });
 });
 
@@ -108,12 +112,14 @@ test("a stop-limit order forwards the stop trigger and the limit price", async (
   assert.equal(result.order?.status, "executed");
   const placed = mock.placedOrders[mock.placedOrders.length - 1];
   assert.deepEqual(placed, {
+    account_number: "MOCK-ACCT-1",
     symbol: "NVDA",
     side: "sell",
     quantity: "3",
     type: "stop_limit",
     limit_price: "202.5",
     stop_price: "203.3",
+    ref_id: order.id,
   });
 });
 
@@ -121,6 +127,18 @@ test("stop orders require a stop price, stop-limit also a limit price", () => {
   assert.throws(() => propose({ order_type: "stop_market" }), /stop_price/);
   assert.throws(() => propose({ order_type: "stop_limit", stop_price: 200 }), /limit_price/);
   assert.throws(() => propose({ order_type: "bracket" }), /order_type/);
+});
+
+test("a confirmed order is refused at the broker when no account is selected", async () => {
+  const settings = await import("../db/settings.js");
+  settings.setSetting("robinhood_account_number", ""); // clear the selection
+  const { order } = propose({ ticker: "MSFT", side: "buy", quantity: 1, order_type: "market" });
+  const placedBefore = mock.placedOrders.length;
+  const result = await gate.confirmOrder(order.id);
+  assert.equal(result.order?.status, "failed");
+  assert.match(result.order?.result ?? "", /account/i);
+  assert.equal(mock.placedOrders.length, placedBefore, "nothing placed without an account");
+  settings.setRobinhoodAccountNumber("MOCK-ACCT-1"); // restore for later tests
 });
 
 test("confirming twice is a conflict and places nothing extra", async () => {

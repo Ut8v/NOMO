@@ -7,6 +7,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import type { PendingOrderView } from "@nomo/shared";
 import { config } from "../config.js";
 import { recordToolCall } from "../db/auditLog.js";
+import { getRobinhoodAccountNumber } from "../db/settings.js";
 import { registerTool, unregisterTool } from "../tools/registry.js";
 import type { ToolTier } from "../tools/registry.js";
 import { RobinhoodOAuthProvider } from "./robinhoodAuth.js";
@@ -242,8 +243,11 @@ function buildOrderArgs(order: {
   orderType: string | null;
   limitPrice: string | null;
   stopPrice: string | null;
+  accountNumber: string;
+  refId?: string;
 }): Record<string, unknown> {
   const args: Record<string, unknown> = {
+    account_number: order.accountNumber,
     symbol: order.ticker,
     side: order.side,
     quantity: order.quantity,
@@ -256,7 +260,32 @@ function buildOrderArgs(order: {
   if ((type === "stop_market" || type === "stop_limit") && order.stopPrice != null) {
     args.stop_price = order.stopPrice;
   }
+  // Idempotency key: reuse the pending order's UUID so a transport retry of the
+  // same logical order deduplicates at the broker.
+  if (order.refId) {
+    args.ref_id = order.refId;
+  }
   return args;
+}
+
+/**
+ * The user-selected account orders are placed against. It is required by the
+ * broker and is never guessed here: if it has not been set from the UI, the
+ * order fails loudly rather than defaulting to some account.
+ */
+function requireAccountNumber(): string {
+  const account = getRobinhoodAccountNumber();
+  if (!account) {
+    throw new Error(
+      "No Robinhood account is selected. Open Settings and choose the account to trade before placing or simulating orders.",
+    );
+  }
+  return account;
+}
+
+/** Lists the linked account numbers for the settings picker (never auto-selected). */
+export async function listAccounts(): Promise<unknown> {
+  return callRobinhoodTool("get_accounts", {});
 }
 
 /**
@@ -290,6 +319,8 @@ export async function executeConfirmedOrder(order: PendingOrderView): Promise<st
     orderType: order.orderType,
     limitPrice: order.limitPrice,
     stopPrice: order.stopPrice,
+    accountNumber: requireAccountNumber(),
+    refId: order.id,
   });
 
   // If the live MCP exposes a review tool, preview the order first. A review
@@ -327,6 +358,7 @@ export async function simulateEquityOrder(proposal: {
     orderType: proposal.orderType,
     limitPrice: proposal.limitPrice ?? null,
     stopPrice: proposal.stopPrice ?? null,
+    accountNumber: requireAccountNumber(),
   });
 
   // This previews a live order at the broker on synthesis's behalf, so it is
