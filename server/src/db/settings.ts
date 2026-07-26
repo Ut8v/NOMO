@@ -29,3 +29,18 @@ export function isTierEnabled(tier: ToolTier): boolean {
 export function setTierEnabled(tier: ToolTier, enabled: boolean): void {
   setSetting(`tier_enabled:${tier}`, enabled ? "true" : "false");
 }
+
+/**
+ * Per-agent toggle for research specialists. Unlike tiers, an agent can default
+ * off (the options specialist does), so the default is explicit rather than
+ * assumed enabled.
+ */
+export function isAgentEnabled(agent: string, defaultEnabled: boolean): boolean {
+  const value = getSetting(`agent_enabled:${agent}`);
+  if (value === null) return defaultEnabled;
+  return value !== "false";
+}
+
+export function setAgentEnabled(agent: string, enabled: boolean): void {
+  setSetting(`agent_enabled:${agent}`, enabled ? "true" : "false");
+}

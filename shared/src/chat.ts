@@ -48,6 +48,8 @@ export interface ToolEvent {
   phase: "start" | "end";
   /** Present on the end phase. */
   ok?: boolean;
+  /** Sub-agent lane this call belongs to during orchestrated research. */
+  agent?: string;
 }
 
 /** Events sent over the SSE chat stream, one JSON object per data line. */
