@@ -117,6 +117,15 @@ test("a full orchestrated run creates exactly one pending order and moves no mon
   // Synthesis and skeptic lanes were reported.
   assert.ok(agentEvents.includes("synthesis:start"));
   assert.ok(agentEvents.includes("skeptic:start"));
+
+  // The mandatory pre-trade simulation was written to the audit log, tagged to
+  // the synthesis agent, like every other tool call.
+  const dbModule = await import("../db/index.js");
+  const audited = dbModule
+    .getDb()
+    .prepare("SELECT COUNT(*) AS n FROM audit_log WHERE tool_name = 'review_equity_order' AND agent = 'synthesis'")
+    .get() as { n: number };
+  assert.ok(audited.n >= 1, "the simulation call is audited");
 });
 
 test("no research agent's tool schema contains an execution tool", () => {

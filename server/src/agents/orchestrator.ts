@@ -59,9 +59,20 @@ export function planSpecialists(question: string): PlannedAgent[] {
 
 async function withTimeout(
   def: SpecialistDef,
+  external: AbortSignal | undefined,
   run: (signal: AbortSignal) => Promise<SpecialistOutcome>,
 ): Promise<SpecialistOutcome> {
+  // The specialist listens to a single combined signal so that either the
+  // per-agent timeout OR the outer request actually cancels its in-flight
+  // model stream, rather than the timeout abandoning a request that keeps
+  // running and accruing cost.
   const controller = new AbortController();
+  const onExternalAbort = () => controller.abort();
+  if (external) {
+    if (external.aborted) controller.abort();
+    else external.addEventListener("abort", onExternalAbort, { once: true });
+  }
+
   let timer: NodeJS.Timeout | undefined;
   const timeout = new Promise<SpecialistOutcome>((resolve) => {
     timer = setTimeout(() => {
@@ -73,6 +84,7 @@ async function withTimeout(
     return await Promise.race([run(controller.signal), timeout]);
   } finally {
     if (timer) clearTimeout(timer);
+    if (external) external.removeEventListener("abort", onExternalAbort);
   }
 }
 
@@ -89,8 +101,8 @@ export async function runResearch(
   const outcomes = await Promise.all(
     plan.map(async ({ def, task }) => {
       sink.onAgent?.({ name: def.name, phase: "start" });
-      const outcome = await withTimeout(def, (agentSignal) =>
-        runSpecialist(def, task, { onToolEvent: sink.onToolEvent, onChart: sink.onChart }, signal ?? agentSignal),
+      const outcome = await withTimeout(def, signal, (agentSignal) =>
+        runSpecialist(def, task, { onToolEvent: sink.onToolEvent, onChart: sink.onChart }, agentSignal),
       );
       sink.onAgent?.({ name: def.name, phase: "end", ok: outcome.findings !== null });
       costs.push({ agent: def.name, costUsd: outcome.costUsd });

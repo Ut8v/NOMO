@@ -6,6 +6,7 @@ import { auth, UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.j
 import type Anthropic from "@anthropic-ai/sdk";
 import type { PendingOrderView } from "@nomo/shared";
 import { config } from "../config.js";
+import { recordToolCall } from "../db/auditLog.js";
 import { registerTool, unregisterTool } from "../tools/registry.js";
 import type { ToolTier } from "../tools/registry.js";
 import { RobinhoodOAuthProvider } from "./robinhoodAuth.js";
@@ -287,11 +288,6 @@ export async function simulateEquityOrder(proposal: {
   orderType: string;
   limitPrice?: string | null;
 }): Promise<string> {
-  if (!availableToolNames.has("review_equity_order")) {
-    throw new Error(
-      "Order simulation is unavailable: Robinhood is not linked or does not expose review_equity_order.",
-    );
-  }
   const args: Record<string, unknown> = {
     symbol: proposal.ticker,
     side: proposal.side,
@@ -301,7 +297,24 @@ export async function simulateEquityOrder(proposal: {
   if (proposal.orderType === "limit" && proposal.limitPrice != null) {
     args.limit_price = proposal.limitPrice;
   }
-  return stringifyAck(await callRobinhoodTool("review_equity_order", args));
+
+  // This previews a live order at the broker on synthesis's behalf, so it is
+  // audited like every other tool call, tagged to the synthesis agent.
+  if (!availableToolNames.has("review_equity_order")) {
+    recordToolCall({ toolName: "review_equity_order", tier: "portfolio_read", params: args, outcome: "unavailable: not linked", agent: "synthesis" });
+    throw new Error(
+      "Order simulation is unavailable: Robinhood is not linked or does not expose review_equity_order.",
+    );
+  }
+  try {
+    const review = stringifyAck(await callRobinhoodTool("review_equity_order", args));
+    recordToolCall({ toolName: "review_equity_order", tier: "portfolio_read", params: args, outcome: "ok", agent: "synthesis" });
+    return review;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "review failed";
+    recordToolCall({ toolName: "review_equity_order", tier: "portfolio_read", params: args, outcome: `error: ${message}`, agent: "synthesis" });
+    throw err;
+  }
 }
 
 export function unregisterRobinhoodTools(): void {
