@@ -15,15 +15,52 @@ This app connects to a real brokerage account and can place real orders after yo
 
 ## How it works
 
+```mermaid
+flowchart TB
+    subgraph BROWSER["Browser · React + Vite"]
+        UI["Chat UI"]
+        CARD["Confirmation cards · charts · activity lanes"]
+    end
+
+    subgraph SERVER["Express backend · TypeScript"]
+        LOOP["Chat loop (Anthropic tool use)"]
+        REG{{"Tool registry (tiered)"}}
+        ORCH["Research orchestrator"]
+        SPEC["Specialist agents<br/>screener · technicals · fundamentals<br/>portfolio-risk · options"]
+        SYN["Synthesis"]
+        SKEP["Risk-skeptic"]
+        GATE[["Confirmation gate"]]
+    end
+
+    subgraph EXT["External services"]
+        ANTH["Anthropic API"]
+        RH["Robinhood Trading MCP"]
+        POLY["Polygon REST"]
+    end
+
+    DB[("SQLite<br/>credentials · audit_log · pending_orders<br/>memories · usage · conversations")]
+
+    UI <-->|"SSE stream"| LOOP
+    LOOP --> ANTH
+    LOOP --> REG
+    REG -->|"auto-run reads"| RH
+    REG -->|"charts / OHLCV"| POLY
+    LOOP -->|"deep_research"| ORCH
+    ORCH --> SPEC --> SYN --> SKEP
+    SPEC -->|"read tools only"| RH
+    SPEC --> POLY
+    SYN -->|"simulate (review_equity_order)"| RH
+    SYN -->|"proposal"| GATE
+    SKEP -->|"bear case"| GATE
+    REG -->|"execution tool"| GATE
+    GATE -->|"PendingOrder<br/>awaiting confirmation"| CARD
+    CARD -->|"user confirms"| GATE
+    GATE ==>|"only path to broker:<br/>confirmed order"| RH
+    LOOP --- DB
+    GATE --- DB
 ```
-React (Vite) chat UI  <--SSE-->  Express (TypeScript) backend
-                                     |-- Anthropic API (chat loop, tool use)
-                                     |-- Research orchestrator
-                                     |      specialists (parallel) -> synthesis -> risk-skeptic
-                                     |-- MCP client -> Robinhood Trading MCP
-                                     |      (https://agent.robinhood.com/mcp/trading)
-                                     |-- Polygon REST (OHLCV for charts)
-```
+
+The one hard rule the diagram encodes: no path reaches the broker except a confirmed `PendingOrder` through the gate. Specialists, synthesis, and the skeptic hold read and simulation tools only.
 
 The core principle: the LLM interprets and decides, deterministic code computes and executes.
 
