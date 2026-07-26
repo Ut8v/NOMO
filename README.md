@@ -45,6 +45,18 @@ The core principle: the LLM interprets and decides, deterministic code computes 
 
 ![The confirmation gate](docs/screenshots/confirmation-gate.jpg)
 
+## Multi-agent research
+
+For a trade idea or a should-I-buy-or-sell question, Claude can run a `deep_research` pass instead of gathering everything itself. An orchestrator plans which specialists the request needs and fans them out in parallel, each a narrow sub-agent that can only see its own cluster of read tools and must return typed findings, never prose:
+
+- **Screener** for idea generation, **Technicals** for price structure, **Fundamentals & earnings** for valuation and the earnings setup, **Portfolio & risk** for exposure and tax lots, and an **Options** specialist that is off by default.
+- A **Synthesis** step merges the findings into one thesis and at most one concrete proposal. A **Risk-skeptic** then argues the bear case against it.
+- Before any proposal becomes a pending order, it is simulated with Robinhood's order review tool, and the broker's pre-trade warnings are captured. If the simulation fails, no proposal is created.
+
+The confirmation card for a researched proposal shows the thesis, the bear case, and the broker's pre-trade warnings side by side, so you confirm with the full picture. The live activity indicator shows each specialist as its own lane while they run.
+
+The core rule holds throughout: no specialist, and neither the synthesis nor the skeptic step, ever holds an order tool. Research shapes proposals only. The single path to the broker is still a confirmed pending order, and simple requests like a quote or a chart skip the orchestrator and hit the tools directly. Specialists run on a cheaper model and synthesis on the stronger one, so a full pass stays inexpensive; the header cost estimate includes every sub-agent.
+
 ## Learning loop
 
 The agent can learn from your history so its proposals get more tailored over time. This never touches execution: no stored fact, lesson, or track record can auto-confirm, resize, or skip the confirmation gate. Learning shapes what Claude proposes, never whether or how a trade is placed.
