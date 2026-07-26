@@ -273,6 +273,37 @@ export async function executeConfirmedOrder(order: PendingOrderView): Promise<st
   return `${ack}${reviewNote}`;
 }
 
+/**
+ * Deterministic pre-trade simulation for the synthesis step. It previews an
+ * equity order via Robinhood's review tool and returns the warnings text; it
+ * places nothing. Called straight through the provider, not the registry, so a
+ * disabled tier cannot skip the mandatory simulation. Throws when review is
+ * unavailable, which the orchestrator surfaces as "no proposal created".
+ */
+export async function simulateEquityOrder(proposal: {
+  ticker: string;
+  side: string;
+  quantity: string;
+  orderType: string;
+  limitPrice?: string | null;
+}): Promise<string> {
+  if (!availableToolNames.has("review_equity_order")) {
+    throw new Error(
+      "Order simulation is unavailable: Robinhood is not linked or does not expose review_equity_order.",
+    );
+  }
+  const args: Record<string, unknown> = {
+    symbol: proposal.ticker,
+    side: proposal.side,
+    quantity: proposal.quantity,
+    order_type: proposal.orderType,
+  };
+  if (proposal.orderType === "limit" && proposal.limitPrice != null) {
+    args.limit_price = proposal.limitPrice;
+  }
+  return stringifyAck(await callRobinhoodTool("review_equity_order", args));
+}
+
 export function unregisterRobinhoodTools(): void {
   for (const name of registeredToolNames) {
     unregisterTool(name);

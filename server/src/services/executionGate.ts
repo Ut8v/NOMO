@@ -139,6 +139,61 @@ export function proposeCancel(input: unknown): { forModel: unknown; order: Pendi
   );
 }
 
+export interface ResearchedProposal {
+  ticker: string;
+  side: OrderSide;
+  quantity: number;
+  orderType: OrderType;
+  limitPrice?: number | null;
+}
+
+export interface ResearchContext {
+  thesis: string;
+  bearCase: string;
+  /** Robinhood's pre-trade warnings from the mandatory simulation. */
+  brokerWarnings: string | null;
+}
+
+/**
+ * Creates a pending order from an orchestrated proposal. It runs the SAME
+ * validation as a direct proposeOrder call and then only writes a
+ * pending_orders row; it never reaches the broker. The research context
+ * (thesis, bear case, broker warnings) is stored for the confirmation card.
+ * This is a proposal path, not an execution path: the gate to the broker is
+ * still confirmOrder, unchanged.
+ */
+export function proposeResearchedOrder(
+  proposal: ResearchedProposal,
+  context: ResearchContext,
+): { forModel: unknown; order: PendingOrderView } {
+  expireStaleOrders();
+  const parsed = parseProposal({
+    ticker: proposal.ticker,
+    side: proposal.side,
+    quantity: proposal.quantity,
+    order_type: proposal.orderType,
+    limit_price: proposal.limitPrice ?? undefined,
+    rationale: context.thesis,
+  });
+  const order = createPendingOrder({
+    action: "place",
+    ticker: parsed.ticker,
+    side: parsed.side,
+    quantity: parsed.quantity,
+    orderType: parsed.orderType,
+    limitPrice: parsed.limitPrice,
+    brokerRef: null,
+    rationale: parsed.rationale,
+    thesis: context.thesis,
+    bearCase: context.bearCase,
+    brokerWarnings: context.brokerWarnings,
+  });
+  return pendingResult(
+    order,
+    "The order was NOT placed. The user must confirm it in the app within 5 minutes. Never state that it executed unless a later system record says so.",
+  );
+}
+
 export type GateActionCode = "not_found" | "conflict";
 
 export interface GateActionResult {
