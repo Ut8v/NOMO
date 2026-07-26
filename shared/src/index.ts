@@ -54,3 +54,12 @@ export type {
 } from "./performance.js";
 
 export type { UsageTotals } from "./usage.js";
+
+export type {
+  SignalDirection,
+  Signal,
+  Findings,
+  FindingsParseResult,
+} from "./findings.js";
+
+export { parseFindings } from "./findings.js";
