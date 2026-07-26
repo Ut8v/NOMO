@@ -1028,3 +1028,34 @@ button.secondary {
   gap: 0.5rem;
   margin-top: 0.6rem;
 }
+
+/* Broker pre-trade review on the confirmation card */
+.broker-review {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.broker-alert {
+  margin: 0;
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  background: #3a2a1a;
+  border: 1px solid #7a5320;
+  color: #f0b866;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.broker-summary {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #d3d7de;
+}
+
+.broker-disclosure {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #9aa3b2;
+  line-height: 1.4;
+}
