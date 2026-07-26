@@ -18,6 +18,8 @@ This app connects to a real brokerage account and can place real orders after yo
 ```
 React (Vite) chat UI  <--SSE-->  Express (TypeScript) backend
                                      |-- Anthropic API (chat loop, tool use)
+                                     |-- Research orchestrator
+                                     |      specialists (parallel) -> synthesis -> risk-skeptic
                                      |-- MCP client -> Robinhood Trading MCP
                                      |      (https://agent.robinhood.com/mcp/trading)
                                      |-- Polygon REST (OHLCV for charts)
@@ -30,13 +32,14 @@ The core principle: the LLM interprets and decides, deterministic code computes 
 
 | Tier | Examples | Behavior |
 |------|----------|----------|
-| `market_data` | get_quote, get_ohlcv, render_chart | Runs automatically |
+| `market_data` | get_quote, get_ohlcv, render_chart, deep_research | Runs automatically |
 | `portfolio_read` | positions, balances, P/L, fundamentals, watchlists | Runs automatically |
 | `account_write` | edit watchlists, edit scanners | Runs automatically (reversible, moves no money); toggle off in settings |
 | `execution` | place_equity_order, cancel_equity_order | Never runs directly. Confirmation gate required |
 
 - An execution tool call only creates a pending order (a placement or a cancellation) with a 5 minute expiry. The UI renders a confirmation card; Confirm forwards the exact stored parameters to Robinhood, Reject discards them. The only code path that can reach a Robinhood execution tool requires a stored order in confirmed status. There is no bypass flag.
 - If the linked Robinhood MCP exposes an order review tool, placements are previewed with it before being sent, and a review failure aborts the placement.
+- For a trade idea or a should-I-buy question, Claude calls `deep_research`, which runs a fan-out of read-only specialist agents into a synthesis and a risk-skeptic step, and can propose one order that still stops at the same gate. See [Multi-agent research](#multi-agent-research) below. Simple requests like a quote or chart skip it.
 - Disabling a tool tier in settings removes those tools from the schema sent to Claude, not just from what can run.
 - Every tool call is written to a local audit log with tier, parameters, and outcome.
 - Conversations are saved to the local database, so a reload restores the transcript and past chats are listed in a collapsible sidebar. Assistant replies render Markdown.
