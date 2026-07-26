@@ -8,6 +8,7 @@ import { ordersRouter } from "./routes/orders.js";
 import { conversationsRouter } from "./routes/conversations.js";
 import { memoriesRouter } from "./routes/memories.js";
 import { usageRouter } from "./routes/usage.js";
+import { adminRouter } from "./routes/admin.js";
 
 export function createApp(): Express {
   const app = express();
@@ -25,6 +26,7 @@ export function createApp(): Express {
   app.use("/api/conversations", conversationsRouter);
   app.use("/api/memories", memoriesRouter);
   app.use("/api/usage", usageRouter);
+  app.use("/api/admin", adminRouter);
 
   return app;
 }
