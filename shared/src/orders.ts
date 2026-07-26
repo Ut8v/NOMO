@@ -5,7 +5,7 @@
  */
 
 export type OrderSide = "buy" | "sell";
-export type OrderType = "market" | "limit";
+export type OrderType = "market" | "limit" | "stop_market" | "stop_limit";
 export type OrderAction = "place" | "cancel";
 
 export type PendingOrderStatus =
@@ -26,6 +26,8 @@ export interface PendingOrderView {
   quantity: string | null;
   orderType: OrderType | null;
   limitPrice: string | null;
+  /** Stop trigger price for stop_market and stop_limit orders; null otherwise. */
+  stopPrice: string | null;
   /** Broker order id to cancel; null for place proposals. */
   brokerRef: string | null;
   rationale: string;

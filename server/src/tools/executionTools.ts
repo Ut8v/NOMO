@@ -12,15 +12,20 @@ export function registerExecutionTools(): void {
     name: "place_equity_order",
     tier: "execution",
     description:
-      "Propose an equity order. This does NOT place the order: it creates a proposal the user must explicitly confirm in the app within 5 minutes, and the broker is only contacted after that confirmation. Always give a clear one or two sentence rationale.",
+      "Propose an equity order. This does NOT place the order: it creates a proposal the user must explicitly confirm in the app within 5 minutes, and the broker is only contacted after that confirmation. Supports stop and stop-limit orders (for example, sell if the price falls to a stop). Always give a clear one or two sentence rationale.",
     inputSchema: {
       type: "object",
       properties: {
         ticker: { type: "string", description: "Stock symbol, e.g. AAPL" },
         side: { type: "string", enum: ["buy", "sell"] },
         quantity: { type: "number", description: "Share count, fractional allowed" },
-        order_type: { type: "string", enum: ["market", "limit"] },
-        limit_price: { type: "number", description: "Required for limit orders" },
+        order_type: {
+          type: "string",
+          enum: ["market", "limit", "stop_market", "stop_limit"],
+          description: "market, limit, stop_market (sell/buy once the stop triggers, then market), or stop_limit (triggers, then a limit order)",
+        },
+        limit_price: { type: "number", description: "Required for limit and stop_limit orders" },
+        stop_price: { type: "number", description: "Trigger price; required for stop_market and stop_limit orders" },
         rationale: { type: "string", description: "Why this trade is proposed" },
       },
       required: ["ticker", "side", "quantity", "order_type", "rationale"],

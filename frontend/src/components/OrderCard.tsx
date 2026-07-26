@@ -70,7 +70,7 @@ export default function OrderCard({ order, onResolved }: Props) {
           <dd>
             {order.action === "cancel"
               ? `${order.ticker} order ${order.brokerRef ?? ""}`.trim()
-              : `${order.orderType ?? ""}${order.limitPrice ? ` at $${order.limitPrice}` : ""}`}
+              : `${(order.orderType ?? "").replace("_", " ")}${order.stopPrice ? ` · stop $${order.stopPrice}` : ""}${order.limitPrice ? ` · limit $${order.limitPrice}` : ""}`}
           </dd>
         </div>
         <div>

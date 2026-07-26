@@ -23,12 +23,15 @@ const TICKER_PATTERN = /^[A-Z][A-Z0-9.\-]{0,9}$/;
 const MAX_QUANTITY = 100_000;
 const MAX_RATIONALE_LENGTH = 2_000;
 
+const ORDER_TYPES: readonly OrderType[] = ["market", "limit", "stop_market", "stop_limit"];
+
 interface ParsedProposal {
   ticker: string;
   side: OrderSide;
   quantity: string;
   orderType: OrderType;
   limitPrice: string | null;
+  stopPrice: string | null;
   rationale: string;
 }
 
@@ -61,25 +64,42 @@ function parseProposal(input: unknown): ParsedProposal {
     throw new Error(`quantity must be a number between 0 and ${MAX_QUANTITY}.`);
   }
 
-  if (raw.order_type !== "market" && raw.order_type !== "limit") {
-    throw new Error("order_type must be market or limit.");
+  if (!ORDER_TYPES.includes(raw.order_type as OrderType)) {
+    throw new Error(`order_type must be one of: ${ORDER_TYPES.join(", ")}.`);
   }
+  const orderType = raw.order_type as OrderType;
+
+  // limit_price is required for limit and stop_limit; stop_price is required
+  // for stop_market and stop_limit. A price is only ever stored when its order
+  // type calls for it, so a market order can never carry a stray limit.
+  const needsLimit = orderType === "limit" || orderType === "stop_limit";
+  const needsStop = orderType === "stop_market" || orderType === "stop_limit";
 
   let limitPrice: string | null = null;
-  if (raw.order_type === "limit") {
+  if (needsLimit) {
     const price = typeof raw.limit_price === "number" ? raw.limit_price : Number.NaN;
     if (!Number.isFinite(price) || price <= 0) {
-      throw new Error("limit_price must be a positive number for limit orders.");
+      throw new Error(`limit_price must be a positive number for ${orderType} orders.`);
     }
     limitPrice = String(price);
+  }
+
+  let stopPrice: string | null = null;
+  if (needsStop) {
+    const price = typeof raw.stop_price === "number" ? raw.stop_price : Number.NaN;
+    if (!Number.isFinite(price) || price <= 0) {
+      throw new Error(`stop_price must be a positive number for ${orderType} orders.`);
+    }
+    stopPrice = String(price);
   }
 
   return {
     ticker,
     side: raw.side,
     quantity: String(quantity),
-    orderType: raw.order_type,
+    orderType,
     limitPrice,
+    stopPrice,
     rationale: normalizeRationale(raw.rationale),
   };
 }
@@ -107,6 +127,7 @@ export function proposeOrder(input: unknown): { forModel: unknown; order: Pendin
     quantity: parsed.quantity,
     orderType: parsed.orderType,
     limitPrice: parsed.limitPrice,
+    stopPrice: parsed.stopPrice,
     brokerRef: null,
     rationale: parsed.rationale,
   });
@@ -145,6 +166,7 @@ export interface ResearchedProposal {
   quantity: number;
   orderType: OrderType;
   limitPrice?: number | null;
+  stopPrice?: number | null;
 }
 
 export interface ResearchContext {
@@ -173,6 +195,7 @@ export function proposeResearchedOrder(
     quantity: proposal.quantity,
     order_type: proposal.orderType,
     limit_price: proposal.limitPrice ?? undefined,
+    stop_price: proposal.stopPrice ?? undefined,
     rationale: context.thesis,
   });
   const order = createPendingOrder({
@@ -182,6 +205,7 @@ export function proposeResearchedOrder(
     quantity: parsed.quantity,
     orderType: parsed.orderType,
     limitPrice: parsed.limitPrice,
+    stopPrice: parsed.stopPrice,
     brokerRef: null,
     rationale: parsed.rationale,
     thesis: context.thesis,

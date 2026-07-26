@@ -51,7 +51,7 @@ function orderRecord(order: PendingOrderView): string {
   const subject =
     order.action === "cancel"
       ? `cancel ${order.ticker} order ${order.brokerRef ?? ""}`.trim()
-      : `${order.side} ${order.quantity} ${order.ticker} ${order.orderType}${order.limitPrice ? ` at $${order.limitPrice}` : ""}`;
+      : `${order.side} ${order.quantity} ${order.ticker} ${order.orderType}${order.stopPrice ? ` stop $${order.stopPrice}` : ""}${order.limitPrice ? ` limit $${order.limitPrice}` : ""}`;
   return `[Order record: ${subject}. Status: ${order.status}${reason}${result}]`;
 }
 

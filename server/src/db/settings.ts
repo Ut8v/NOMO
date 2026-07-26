@@ -44,3 +44,18 @@ export function isAgentEnabled(agent: string, defaultEnabled: boolean): boolean 
 export function setAgentEnabled(agent: string, enabled: boolean): void {
   setSetting(`agent_enabled:${agent}`, enabled ? "true" : "false");
 }
+
+const ACCOUNT_NUMBER_KEY = "robinhood_account_number";
+
+/**
+ * The Robinhood account number orders are placed against. It is required by the
+ * broker and must be chosen by the user (never guessed by the agent), so it is
+ * set from the UI and stored here, not hardcoded anywhere.
+ */
+export function getRobinhoodAccountNumber(): string | null {
+  return getSetting(ACCOUNT_NUMBER_KEY);
+}
+
+export function setRobinhoodAccountNumber(accountNumber: string): void {
+  setSetting(ACCOUNT_NUMBER_KEY, accountNumber);
+}
