@@ -2,13 +2,33 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import MemoryPanel from "./MemoryPanel";
 import type { RobinhoodStatus, TierSetting } from "../api";
 import {
+  fetchRobinhoodAccount,
   fetchRobinhoodStatus,
   fetchTierSettings,
+  listRobinhoodAccounts,
   saveKeys,
+  saveRobinhoodAccount,
   startRobinhoodLink,
   unlinkRobinhood,
   updateTierSetting,
 } from "../api";
+
+/** Pulls account_number strings out of the get_accounts response, shape-agnostic. */
+function extractAccountNumbers(data: unknown): string[] {
+  const found = new Set<string>();
+  const walk = (value: unknown) => {
+    if (Array.isArray(value)) {
+      value.forEach(walk);
+    } else if (value && typeof value === "object") {
+      for (const [key, v] of Object.entries(value as Record<string, unknown>)) {
+        if (key === "account_number" && typeof v === "string") found.add(v);
+        else walk(v);
+      }
+    }
+  };
+  walk(data);
+  return [...found];
+}
 
 interface Props {
   onBack: () => void;
@@ -43,15 +63,58 @@ export default function SettingsScreen({ onBack }: Props) {
   const [tiers, setTiers] = useState<TierSetting[]>([]);
   const [tierError, setTierError] = useState<string | null>(null);
 
+  const [accountNumber, setAccountNumber] = useState("");
+  const [savedAccount, setSavedAccount] = useState<string | null>(null);
+  const [accountBusy, setAccountBusy] = useState(false);
+  const [accountError, setAccountError] = useState<string | null>(null);
+  const [accountMessage, setAccountMessage] = useState<string | null>(null);
+  const [accountOptions, setAccountOptions] = useState<string[]>([]);
+
   const refresh = useCallback(async () => {
     try {
-      const [status, tierSettings] = await Promise.all([fetchRobinhoodStatus(), fetchTierSettings()]);
+      const [status, tierSettings, account] = await Promise.all([
+        fetchRobinhoodStatus(),
+        fetchTierSettings(),
+        fetchRobinhoodAccount().catch(() => ({ accountNumber: null })),
+      ]);
       setRobinhood(status);
       setTiers(tierSettings);
+      setSavedAccount(account.accountNumber);
+      if (account.accountNumber) setAccountNumber(account.accountNumber);
     } catch {
       setLinkError("Could not load settings from the server.");
     }
   }, []);
+
+  async function handleSaveAccount() {
+    setAccountBusy(true);
+    setAccountError(null);
+    setAccountMessage(null);
+    try {
+      const { accountNumber: saved } = await saveRobinhoodAccount(accountNumber.trim());
+      setSavedAccount(saved);
+      setAccountMessage("Trading account saved.");
+    } catch (err) {
+      setAccountError(err instanceof Error ? err.message : "Could not save the account.");
+    } finally {
+      setAccountBusy(false);
+    }
+  }
+
+  async function handleLoadAccounts() {
+    setAccountBusy(true);
+    setAccountError(null);
+    try {
+      const { accounts } = await listRobinhoodAccounts();
+      const options = extractAccountNumbers(accounts);
+      setAccountOptions(options);
+      if (options.length === 0) setAccountError("No account numbers found in the Robinhood response.");
+    } catch (err) {
+      setAccountError(err instanceof Error ? err.message : "Could not load accounts.");
+    } finally {
+      setAccountBusy(false);
+    }
+  }
 
   useEffect(() => {
     void refresh();
@@ -245,6 +308,56 @@ export default function SettingsScreen({ onBack }: Props) {
           </p>
         )}
         {linkError && <p className="error-text">{linkError}</p>}
+      </section>
+
+      <section className="settings-section">
+        <h2>Trading account</h2>
+        <p className="muted">
+          The Robinhood account orders are placed against. Required before any order can be simulated or
+          placed, and it is never chosen automatically. Use an agentic-enabled account, and set spending
+          limits in Robinhood.
+        </p>
+        {savedAccount ? (
+          <p className="success-text">Current account: {savedAccount}</p>
+        ) : (
+          <p className="muted">No account selected yet.</p>
+        )}
+        <label htmlFor="settings-account">Account number</label>
+        <input
+          id="settings-account"
+          type="text"
+          autoComplete="off"
+          placeholder="Your Robinhood account number"
+          value={accountNumber}
+          onChange={(e) => setAccountNumber(e.target.value)}
+          disabled={accountBusy}
+        />
+        {accountOptions.length > 0 && (
+          <div className="account-options">
+            {accountOptions.map((option) => (
+              <button
+                key={option}
+                type="button"
+                className="secondary"
+                onClick={() => setAccountNumber(option)}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+        )}
+        {accountError && <p className="error-text">{accountError}</p>}
+        {accountMessage && <p className="success-text">{accountMessage}</p>}
+        <div className="account-actions">
+          <button onClick={() => void handleSaveAccount()} disabled={accountBusy || !accountNumber.trim()}>
+            {accountBusy ? "Working..." : "Save account"}
+          </button>
+          {robinhood?.active && (
+            <button className="secondary" onClick={() => void handleLoadAccounts()} disabled={accountBusy}>
+              Load my accounts
+            </button>
+          )}
+        </div>
       </section>
 
       <section className="settings-section">

@@ -47,6 +47,31 @@ export async function startRobinhoodLink(): Promise<{ authorizeUrl: string; link
   return body;
 }
 
+export async function fetchRobinhoodAccount(): Promise<{ accountNumber: string | null }> {
+  const res = await fetch("/api/robinhood/account");
+  if (!res.ok) throw new Error(`Failed to load account (${res.status})`);
+  return res.json();
+}
+
+export async function saveRobinhoodAccount(accountNumber: string): Promise<{ accountNumber: string }> {
+  const res = await fetch("/api/robinhood/account", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accountNumber }),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(body?.error ?? `Failed to save account (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function listRobinhoodAccounts(): Promise<{ accounts: unknown }> {
+  const res = await fetch("/api/robinhood/accounts");
+  if (!res.ok) throw new Error(`Failed to load accounts (${res.status})`);
+  return res.json();
+}
+
 export async function unlinkRobinhood(): Promise<void> {
   const res = await fetch("/api/robinhood/unlink", { method: "POST" });
   if (!res.ok) throw new Error(`Failed to unlink (${res.status})`);

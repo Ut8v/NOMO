@@ -1015,3 +1015,16 @@ button.secondary {
 .db-grid tbody tr:hover {
   background: #14171d;
 }
+
+.account-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.5rem 0;
+}
+
+.account-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
