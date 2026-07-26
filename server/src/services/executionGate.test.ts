@@ -88,9 +88,39 @@ test("confirm forwards exactly the stored parameters and records the ack", async
     symbol: "TSLA",
     side: "buy",
     quantity: "2",
-    order_type: "limit",
+    type: "limit",
     limit_price: "100.5",
   });
+});
+
+test("a stop-limit order forwards the stop trigger and the limit price", async () => {
+  const { order } = propose({
+    ticker: "NVDA",
+    side: "sell",
+    quantity: 3,
+    order_type: "stop_limit",
+    stop_price: 203.3,
+    limit_price: 202.5,
+  });
+  assert.equal(order.orderType, "stop_limit");
+  assert.equal(order.stopPrice, "203.3");
+  const result = await gate.confirmOrder(order.id);
+  assert.equal(result.order?.status, "executed");
+  const placed = mock.placedOrders[mock.placedOrders.length - 1];
+  assert.deepEqual(placed, {
+    symbol: "NVDA",
+    side: "sell",
+    quantity: "3",
+    type: "stop_limit",
+    limit_price: "202.5",
+    stop_price: "203.3",
+  });
+});
+
+test("stop orders require a stop price, stop-limit also a limit price", () => {
+  assert.throws(() => propose({ order_type: "stop_market" }), /stop_price/);
+  assert.throws(() => propose({ order_type: "stop_limit", stop_price: 200 }), /limit_price/);
+  assert.throws(() => propose({ order_type: "bracket" }), /order_type/);
 });
 
 test("confirming twice is a conflict and places nothing extra", async () => {

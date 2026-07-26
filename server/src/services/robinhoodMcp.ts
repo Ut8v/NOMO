@@ -228,6 +228,38 @@ function stringifyAck(ack: unknown): string {
 }
 
 /**
+ * Maps a stored order to Robinhood's place/review argument shape. The broker
+ * parameter is `type` (market, limit, stop_market, stop_limit); limit_price is
+ * sent for limit and stop_limit, stop_price for stop_market and stop_limit.
+ * Note: account_number is required by the live schema for real placement and is
+ * not yet wired here; the mock does not require it. That remains part of the
+ * one manual real-account verification step.
+ */
+function buildOrderArgs(order: {
+  ticker: string;
+  side: string | null;
+  quantity: string | null;
+  orderType: string | null;
+  limitPrice: string | null;
+  stopPrice: string | null;
+}): Record<string, unknown> {
+  const args: Record<string, unknown> = {
+    symbol: order.ticker,
+    side: order.side,
+    quantity: order.quantity,
+    type: order.orderType,
+  };
+  const type = order.orderType;
+  if ((type === "limit" || type === "stop_limit") && order.limitPrice != null) {
+    args.limit_price = order.limitPrice;
+  }
+  if ((type === "stop_market" || type === "stop_limit") && order.stopPrice != null) {
+    args.stop_price = order.stopPrice;
+  }
+  return args;
+}
+
+/**
  * THE ONLY PATH to a Robinhood execution tool. It accepts nothing but a
  * stored pending order in confirmed status; parameters are taken from that
  * row and never from model output. Do not add another caller besides the
@@ -251,15 +283,14 @@ export async function executeConfirmedOrder(order: PendingOrderView): Promise<st
     return stringifyAck(await callRobinhoodTool("cancel_equity_order", { order_id: order.brokerRef }));
   }
 
-  const args: Record<string, unknown> = {
-    symbol: order.ticker,
+  const args = buildOrderArgs({
+    ticker: order.ticker,
     side: order.side,
     quantity: order.quantity,
-    order_type: order.orderType,
-  };
-  if (order.orderType === "limit" && order.limitPrice !== null) {
-    args.limit_price = order.limitPrice;
-  }
+    orderType: order.orderType,
+    limitPrice: order.limitPrice,
+    stopPrice: order.stopPrice,
+  });
 
   // If the live MCP exposes a review tool, preview the order first. A review
   // failure aborts placement (the error surfaces on the card), so nothing is
@@ -287,16 +318,16 @@ export async function simulateEquityOrder(proposal: {
   quantity: string;
   orderType: string;
   limitPrice?: string | null;
+  stopPrice?: string | null;
 }): Promise<string> {
-  const args: Record<string, unknown> = {
-    symbol: proposal.ticker,
+  const args = buildOrderArgs({
+    ticker: proposal.ticker,
     side: proposal.side,
     quantity: proposal.quantity,
-    order_type: proposal.orderType,
-  };
-  if (proposal.orderType === "limit" && proposal.limitPrice != null) {
-    args.limit_price = proposal.limitPrice;
-  }
+    orderType: proposal.orderType,
+    limitPrice: proposal.limitPrice ?? null,
+    stopPrice: proposal.stopPrice ?? null,
+  });
 
   // This previews a live order at the broker on synthesis's behalf, so it is
   // audited like every other tool call, tagged to the synthesis agent.
