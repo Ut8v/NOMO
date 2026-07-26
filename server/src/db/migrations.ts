@@ -218,6 +218,15 @@ const migrations: Migration[] = [
       ALTER TABLE pending_orders ADD COLUMN broker_warnings TEXT;
     `,
   },
+  {
+    id: 13,
+    name: "pending-order-stop-price",
+    // Stop trigger price for stop_market and stop_limit orders. NULL for
+    // market and limit orders and every pre-existing row.
+    sql: `
+      ALTER TABLE pending_orders ADD COLUMN stop_price TEXT;
+    `,
+  },
 ];
 
 export function runMigrations(db: Database): void {
