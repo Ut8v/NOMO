@@ -155,34 +155,104 @@ function translateConnectionError(err: unknown): Error {
   return new Error("Robinhood is unreachable right now. Try again shortly, or check the link in Settings.");
 }
 
+/** A broker-level tool failure (isError result), as opposed to a transport drop. */
+class RobinhoodToolError extends Error {}
+
+// Backoff before the 2nd and 3rd attempts. Transient session drops usually
+// recover on the very next connect, so the waits stay short.
+const RETRY_BACKOFF_MS = [200, 700];
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Only transient failures are worth retrying. An expired session needs a
+ * relink, and a 4xx is a client error that will not change on retry, so both
+ * are left to fail; connection drops and 5xx errors are retried.
+ */
+export function isRetryable(err: unknown): boolean {
+  if (err instanceof UnauthorizedError) return false;
+  const message = err instanceof Error ? err.message : String(err);
+  if (/\b4\d\d\b/.test(message)) return false;
+  return true;
+}
+
 async function callRobinhoodTool(name: string, input: unknown): Promise<unknown> {
-  let mcpClient: Client;
-  try {
-    mcpClient = await ensureClient();
-  } catch (err) {
-    throw translateConnectionError(err);
-  }
-  let result;
-  try {
-    result = await mcpClient.callTool({ name, arguments: (input ?? {}) as Record<string, unknown> });
-  } catch (err) {
-    // One reconnect attempt covers dropped sessions and expired access
-    // tokens (the transport refreshes tokens on connect). The stale client
-    // is closed, not abandoned, so its transport cannot linger.
-    if (client === mcpClient) client = null;
-    void mcpClient.close().catch(() => undefined);
+  const args = (input ?? {}) as Record<string, unknown>;
+  for (let attempt = 0; ; attempt++) {
+    let mcpClient: Client;
     try {
       mcpClient = await ensureClient();
-      result = await mcpClient.callTool({ name, arguments: (input ?? {}) as Record<string, unknown> });
-    } catch (retryErr) {
-      throw translateConnectionError(retryErr);
+    } catch (err) {
+      if (attempt < RETRY_BACKOFF_MS.length && isRetryable(err)) {
+        await delay(RETRY_BACKOFF_MS[attempt]!);
+        continue;
+      }
+      throw translateConnectionError(err);
+    }
+
+    try {
+      const result = await mcpClient.callTool({ name, arguments: args });
+      const text = textFromContent(result.content);
+      if (result.isError) {
+        // A broker-level "no" (bad arg, insufficient funds); do not retry it.
+        throw new RobinhoodToolError(text || `Robinhood tool ${name} failed.`);
+      }
+      return result.structuredContent ?? text;
+    } catch (err) {
+      if (err instanceof RobinhoodToolError) throw err;
+      // Transport failure: drop the stale client so the next attempt reconnects.
+      if (client === mcpClient) client = null;
+      void mcpClient.close().catch(() => undefined);
+      if (attempt < RETRY_BACKOFF_MS.length && isRetryable(err)) {
+        await delay(RETRY_BACKOFF_MS[attempt]!);
+        continue;
+      }
+      throw translateConnectionError(err);
     }
   }
-  const text = textFromContent(result.content);
-  if (result.isError) {
-    throw new Error(text || `Robinhood tool ${name} failed.`);
+}
+
+const ACCOUNT_FIELD = "account_number";
+
+/**
+ * Hides account numbers from anything returned to the model: any account_number
+ * field, and any occurrence of the stored account number's exact value. This is
+ * why the account number can never surface in a chat, even though the broker
+ * echoes it in order and position payloads.
+ */
+export function scrubAccountNumbers(value: unknown, known: string | null): unknown {
+  if (typeof value === "string") {
+    return known && value.includes(known) ? value.split(known).join("[hidden]") : value;
   }
-  return result.structuredContent ?? text;
+  if (Array.isArray(value)) return value.map((entry) => scrubAccountNumbers(entry, known));
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
+      out[key] = key === ACCOUNT_FIELD ? "[hidden]" : scrubAccountNumbers(val, known);
+    }
+    return out;
+  }
+  return value;
+}
+
+/**
+ * Removes account_number from a tool's input schema so the model never sees it
+ * as a parameter and cannot supply one. Returns whether the tool required it,
+ * which decides if the stored account is injected server-side at call time.
+ */
+export function stripAccountFromSchema(
+  schema: Anthropic.Tool.InputSchema,
+): { schema: Anthropic.Tool.InputSchema; requiresAccount: boolean } {
+  const clone = JSON.parse(JSON.stringify(schema ?? { type: "object" })) as {
+    properties?: Record<string, unknown>;
+    required?: string[];
+  };
+  const requiresAccount = Array.isArray(clone.required) && clone.required.includes(ACCOUNT_FIELD);
+  if (clone.properties) delete clone.properties[ACCOUNT_FIELD];
+  if (Array.isArray(clone.required)) clone.required = clone.required.filter((r) => r !== ACCOUNT_FIELD);
+  return { schema: clone as Anthropic.Tool.InputSchema, requiresAccount };
 }
 
 /**
@@ -213,12 +283,30 @@ export async function connectAndRegisterTools(): Promise<string[]> {
   for (const tool of discovered.tools) {
     const tier = TOOL_TIERS[tool.name];
     if (!tier) continue;
+    const { schema, requiresAccount } = stripAccountFromSchema(tool.inputSchema as Anthropic.Tool.InputSchema);
     registerTool({
       name: tool.name,
       tier,
       description: tool.description ?? tool.name,
-      inputSchema: tool.inputSchema as Anthropic.Tool.InputSchema,
-      execute: async (input) => ({ forModel: await callRobinhoodTool(tool.name, input) }),
+      inputSchema: schema,
+      execute: async (input) => {
+        const args: Record<string, unknown> = { ...((input ?? {}) as Record<string, unknown>) };
+        const account = getRobinhoodAccountNumber();
+        // The account is injected here, never taken from the model. If a tool
+        // needs one and none is chosen, say so rather than guessing an account.
+        if (requiresAccount) {
+          if (!account) {
+            return {
+              forModel: {
+                error: "No trading account is selected. Ask the user to choose one in Settings before reading account data.",
+              },
+            };
+          }
+          args[ACCOUNT_FIELD] = account;
+        }
+        const raw = await callRobinhoodTool(tool.name, args);
+        return { forModel: scrubAccountNumbers(raw, account) };
+      },
     });
     registeredToolNames.push(tool.name);
   }
@@ -314,6 +402,7 @@ export async function executeConfirmedOrder(order: PendingOrderView): Promise<st
     return stringifyAck(await callRobinhoodTool("cancel_equity_order", { order_id: order.brokerRef }));
   }
 
+  const account = requireAccountNumber();
   const args = buildOrderArgs({
     ticker: order.ticker,
     side: order.side,
@@ -321,7 +410,7 @@ export async function executeConfirmedOrder(order: PendingOrderView): Promise<st
     orderType: order.orderType,
     limitPrice: order.limitPrice,
     stopPrice: order.stopPrice,
-    accountNumber: requireAccountNumber(),
+    accountNumber: account,
     refId: order.id,
   });
 
@@ -335,7 +424,9 @@ export async function executeConfirmedOrder(order: PendingOrderView): Promise<st
     if (notes.length > 0) reviewNote = ` Reviewed before placing: ${notes.join(" ")}`;
   }
 
-  const ack = stringifyAck(await callRobinhoodTool("place_equity_order", args));
+  // Scrub the account number from the broker ack before it is stored on the
+  // order and shown in the app.
+  const ack = stringifyAck(scrubAccountNumbers(await callRobinhoodTool("place_equity_order", args), account));
   return `${ack}${reviewNote}`;
 }
 
