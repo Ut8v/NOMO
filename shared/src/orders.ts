@@ -49,3 +49,18 @@ export interface PendingOrderView {
 export interface OrderActionResponse {
   order: PendingOrderView;
 }
+
+/**
+ * A cleaned pre-trade review for the confirmation card. Parsed from the broker's
+ * raw review_equity_order response: the broker's own model-directed guidance is
+ * dropped, its alerts are surfaced, and the compliance quote disclosure is kept
+ * verbatim. Stored JSON-encoded in PendingOrderView.brokerWarnings.
+ */
+export interface BrokerReview {
+  /** Broker order-check alerts, e.g. insufficient buying power. */
+  alerts: string[];
+  /** market_data_disclosure, shown verbatim for compliance. */
+  disclosure: string | null;
+  /** Short price context, e.g. limit vs bid/ask. */
+  summary: string | null;
+}

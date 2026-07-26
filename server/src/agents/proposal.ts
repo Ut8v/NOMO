@@ -1,4 +1,4 @@
-import type { PendingOrderView } from "@nomo/shared";
+import type { BrokerReview, PendingOrderView } from "@nomo/shared";
 import { proposeResearchedOrder } from "../services/executionGate.js";
 import { simulateEquityOrder } from "../services/robinhoodMcp.js";
 import type { ProposalDraft } from "./synthesis.js";
@@ -13,7 +13,7 @@ import type { ProposalDraft } from "./synthesis.js";
  */
 export interface FinalizeResult {
   order: PendingOrderView | null;
-  warnings?: string;
+  warnings?: BrokerReview;
   error?: string;
 }
 
@@ -22,7 +22,7 @@ export async function finalizeProposal(
   thesis: string,
   bearCase: string,
 ): Promise<FinalizeResult> {
-  let warnings: string;
+  let warnings: BrokerReview;
   try {
     warnings = await simulateEquityOrder({
       ticker: proposal.ticker,
@@ -37,7 +37,8 @@ export async function finalizeProposal(
   }
 
   try {
-    const { order } = proposeResearchedOrder(proposal, { thesis, bearCase, brokerWarnings: warnings });
+    // Stored JSON-encoded; the confirmation card decodes it for a clean render.
+    const { order } = proposeResearchedOrder(proposal, { thesis, bearCase, brokerWarnings: JSON.stringify(warnings) });
     return { order, warnings };
   } catch (err) {
     // Validation rejected the proposal (bad quantity, ticker, and so on).

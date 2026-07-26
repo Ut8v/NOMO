@@ -35,6 +35,7 @@ export type {
   PendingOrderStatus,
   PendingOrderView,
   OrderActionResponse,
+  BrokerReview,
 } from "./orders.js";
 
 export type {

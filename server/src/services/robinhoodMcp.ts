@@ -5,10 +5,12 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { auth, UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
 import type Anthropic from "@anthropic-ai/sdk";
 import type { PendingOrderView } from "@nomo/shared";
+import type { BrokerReview } from "@nomo/shared";
 import { config } from "../config.js";
 import { recordToolCall } from "../db/auditLog.js";
 import { getRobinhoodAccountNumber } from "../db/settings.js";
 import { registerTool, unregisterTool } from "../tools/registry.js";
+import { parseBrokerReview } from "./brokerReview.js";
 import type { ToolTier } from "../tools/registry.js";
 import { RobinhoodOAuthProvider } from "./robinhoodAuth.js";
 
@@ -328,8 +330,9 @@ export async function executeConfirmedOrder(order: PendingOrderView): Promise<st
   // sent that the broker flagged during review.
   let reviewNote = "";
   if (availableToolNames.has("review_equity_order")) {
-    const review = await callRobinhoodTool("review_equity_order", args);
-    reviewNote = ` Reviewed before placing: ${stringifyAck(review)}`;
+    const review = parseBrokerReview(await callRobinhoodTool("review_equity_order", args));
+    const notes = [...review.alerts, review.summary].filter(Boolean);
+    if (notes.length > 0) reviewNote = ` Reviewed before placing: ${notes.join(" ")}`;
   }
 
   const ack = stringifyAck(await callRobinhoodTool("place_equity_order", args));
@@ -350,7 +353,7 @@ export async function simulateEquityOrder(proposal: {
   orderType: string;
   limitPrice?: string | null;
   stopPrice?: string | null;
-}): Promise<string> {
+}): Promise<BrokerReview> {
   const args = buildOrderArgs({
     ticker: proposal.ticker,
     side: proposal.side,
@@ -370,7 +373,7 @@ export async function simulateEquityOrder(proposal: {
     );
   }
   try {
-    const review = stringifyAck(await callRobinhoodTool("review_equity_order", args));
+    const review = parseBrokerReview(await callRobinhoodTool("review_equity_order", args));
     recordToolCall({ toolName: "review_equity_order", tier: "portfolio_read", params: args, outcome: "ok", agent: "synthesis" });
     return review;
   } catch (err) {
