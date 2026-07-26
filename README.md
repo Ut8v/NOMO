@@ -2,7 +2,9 @@
 
 A self-hostable AI trading chat for Robinhood agentic accounts. You talk to Claude in a local chat interface; Claude can pull market data, render candlestick charts inline, read your Robinhood portfolio through the official Trading MCP, and propose trades. Every trade proposal stops at a mandatory confirmation card. Nothing reaches the broker until you click Confirm.
 
-![NOMO chat with an inline chart, live tool activity, and the conversation sidebar](docs/screenshots/overview.png)
+
+https://github.com/user-attachments/assets/52eb0f8c-7432-489f-aa26-9338a546d7fe
+
 
 ## Disclaimer, read this first
 
