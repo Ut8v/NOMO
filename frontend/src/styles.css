@@ -484,12 +484,31 @@ button.secondary {
   gap: 0.3rem;
 }
 
+.activity-body {
+  padding-bottom: 0.3rem;
+}
+
+.activity-lane {
+  padding: 0.15rem 0.6rem 0.1rem 0.7rem;
+}
+
+.activity-sublist {
+  padding: 0.25rem 0 0.35rem 1.3rem;
+  border-left: 1px solid #2a3040;
+  margin-left: 0.35rem;
+}
+
 .activity-item {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   font-size: 0.85rem;
   color: #c3c9d4;
+}
+
+.activity-item.activity-lane-head {
+  font-weight: 600;
+  color: #d5dae3;
 }
 
 .activity-item.activity-done {
