@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildSystemPrompt } from "./chat.js";
+import { buildSystemPrompt } from "../../src/services/chat.js";
 
 test("no memory section when there are no memories", () => {
   const prompt = buildSystemPrompt(3, []);

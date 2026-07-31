@@ -7,15 +7,15 @@ import path from "node:path";
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "nomo-search-test-"));
 process.env.NOMO_DATA_DIR = tempDir;
 
-let db: typeof import("./index.js");
-let conversations: typeof import("./conversations.js");
-let search: typeof import("./search.js");
+let db: typeof import("../../src/db/index.js");
+let conversations: typeof import("../../src/db/conversations.js");
+let search: typeof import("../../src/db/search.js");
 
 before(async () => {
-  db = await import("./index.js");
+  db = await import("../../src/db/index.js");
   db.initDatabase();
-  conversations = await import("./conversations.js");
-  search = await import("./search.js");
+  conversations = await import("../../src/db/conversations.js");
+  search = await import("../../src/db/search.js");
 });
 
 beforeEach(() => {

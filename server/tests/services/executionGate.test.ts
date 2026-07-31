@@ -3,8 +3,8 @@ import { after, before, test } from "node:test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { startMockRobinhood } from "../../test/mockRobinhoodMcp.js";
-import type { MockRobinhood } from "../../test/mockRobinhoodMcp.js";
+import { startMockRobinhood } from "../mocks/mockRobinhoodMcp.js";
+import type { MockRobinhood } from "../mocks/mockRobinhoodMcp.js";
 
 // Environment overrides must be in place before any module that reads
 // config is imported, so everything config-dependent is imported
@@ -15,23 +15,23 @@ process.env.NOMO_DATA_DIR = tempDir;
 const MOCK_PORT = 9096;
 
 let mock: MockRobinhood;
-let gate: typeof import("./executionGate.js");
-let robinhoodMcp: typeof import("./robinhoodMcp.js");
-let dbModule: typeof import("../db/index.js");
-let memoriesDb: typeof import("../db/memories.js");
-let registry: typeof import("../tools/registry.js");
+let gate: typeof import("../../src/services/executionGate.js");
+let robinhoodMcp: typeof import("../../src/services/robinhoodMcp.js");
+let dbModule: typeof import("../../src/db/index.js");
+let memoriesDb: typeof import("../../src/db/memories.js");
+let registry: typeof import("../../src/tools/registry.js");
 
 before(async () => {
   mock = await startMockRobinhood(MOCK_PORT);
   process.env.ROBINHOOD_MCP_URL = mock.url;
 
-  dbModule = await import("../db/index.js");
+  dbModule = await import("../../src/db/index.js");
   dbModule.initDatabase();
-  gate = await import("./executionGate.js");
-  robinhoodMcp = await import("./robinhoodMcp.js");
-  memoriesDb = await import("../db/memories.js");
-  registry = await import("../tools/registry.js");
-  const settings = await import("../db/settings.js");
+  gate = await import("../../src/services/executionGate.js");
+  robinhoodMcp = await import("../../src/services/robinhoodMcp.js");
+  memoriesDb = await import("../../src/db/memories.js");
+  registry = await import("../../src/tools/registry.js");
+  const settings = await import("../../src/db/settings.js");
   settings.setRobinhoodAccountNumber("MOCK-ACCT-1");
 });
 
@@ -159,7 +159,7 @@ test("dollar_amount is only allowed for market orders", () => {
 });
 
 test("a confirmed order is refused at the broker when no account is selected", async () => {
-  const settings = await import("../db/settings.js");
+  const settings = await import("../../src/db/settings.js");
   settings.setSetting("robinhood_account_number", ""); // clear the selection
   const { order } = propose({ ticker: "MSFT", side: "buy", quantity: 1, order_type: "market" });
   const placedBefore = mock.placedOrders.length;

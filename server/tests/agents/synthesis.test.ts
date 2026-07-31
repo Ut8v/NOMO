@@ -3,21 +3,21 @@ import { after, before, test } from "node:test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { startMockRobinhood } from "../../test/mockRobinhoodMcp.js";
-import type { MockRobinhood } from "../../test/mockRobinhoodMcp.js";
-import { startMockAnthropic } from "../../test/mockAnthropic.js";
-import type { MockAnthropic, AnthropicRequestBody, MockAssistantReply } from "../../test/mockAnthropic.js";
+import { startMockRobinhood } from "../mocks/mockRobinhoodMcp.js";
+import type { MockRobinhood } from "../mocks/mockRobinhoodMcp.js";
+import { startMockAnthropic } from "../mocks/mockAnthropic.js";
+import type { MockAnthropic, AnthropicRequestBody, MockAssistantReply } from "../mocks/mockAnthropic.js";
 
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "nomo-synthesis-test-"));
 process.env.NOMO_DATA_DIR = tempDir;
 
 let mockRh: MockRobinhood;
 let mockAnthropic: MockAnthropic;
-let synthesis: typeof import("./synthesis.js");
-let proposalMod: typeof import("./proposal.js");
-let robinhoodMcp: typeof import("../services/robinhoodMcp.js");
-let credentials: typeof import("../db/credentials.js");
-let pendingOrders: typeof import("../db/pendingOrders.js");
+let synthesis: typeof import("../../src/agents/synthesis.js");
+let proposalMod: typeof import("../../src/agents/proposal.js");
+let robinhoodMcp: typeof import("../../src/services/robinhoodMcp.js");
+let credentials: typeof import("../../src/db/credentials.js");
+let pendingOrders: typeof import("../../src/db/pendingOrders.js");
 
 let responder: (body: AnthropicRequestBody) => MockAssistantReply = () => ({ blocks: [] });
 
@@ -27,15 +27,15 @@ before(async () => {
   mockAnthropic = await startMockAnthropic((body) => responder(body));
   process.env.ANTHROPIC_BASE_URL = mockAnthropic.url;
 
-  const dbModule = await import("../db/index.js");
+  const dbModule = await import("../../src/db/index.js");
   dbModule.initDatabase();
-  credentials = await import("../db/credentials.js");
+  credentials = await import("../../src/db/credentials.js");
   credentials.setCredential("anthropic", "sk-test");
-  synthesis = await import("./synthesis.js");
-  proposalMod = await import("./proposal.js");
-  robinhoodMcp = await import("../services/robinhoodMcp.js");
-  pendingOrders = await import("../db/pendingOrders.js");
-  const settings = await import("../db/settings.js");
+  synthesis = await import("../../src/agents/synthesis.js");
+  proposalMod = await import("../../src/agents/proposal.js");
+  robinhoodMcp = await import("../../src/services/robinhoodMcp.js");
+  pendingOrders = await import("../../src/db/pendingOrders.js");
+  const settings = await import("../../src/db/settings.js");
   settings.setRobinhoodAccountNumber("MOCK-ACCT-1");
   await robinhoodMcp.connectAndRegisterTools();
 });

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { parseBrokerReview } from "./brokerReview.js";
+import { parseBrokerReview } from "../../src/services/brokerReview.js";
 
 // The shape Robinhood actually returned, trimmed to the relevant fields.
 const REAL = {

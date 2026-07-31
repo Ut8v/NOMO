@@ -3,20 +3,20 @@ import { after, before, test } from "node:test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { startMockRobinhood } from "../../test/mockRobinhoodMcp.js";
-import type { MockRobinhood } from "../../test/mockRobinhoodMcp.js";
-import { startMockAnthropic } from "../../test/mockAnthropic.js";
-import type { MockAnthropic, AnthropicRequestBody, MockAssistantReply } from "../../test/mockAnthropic.js";
+import { startMockRobinhood } from "../mocks/mockRobinhoodMcp.js";
+import type { MockRobinhood } from "../mocks/mockRobinhoodMcp.js";
+import { startMockAnthropic } from "../mocks/mockAnthropic.js";
+import type { MockAnthropic, AnthropicRequestBody, MockAssistantReply } from "../mocks/mockAnthropic.js";
 
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "nomo-specialist-test-"));
 process.env.NOMO_DATA_DIR = tempDir;
 
 let mockRh: MockRobinhood;
 let mockAnthropic: MockAnthropic;
-let specialist: typeof import("./specialist.js");
-let clusters: typeof import("./clusters.js");
-let robinhoodMcp: typeof import("../services/robinhoodMcp.js");
-let credentials: typeof import("../db/credentials.js");
+let specialist: typeof import("../../src/agents/specialist.js");
+let clusters: typeof import("../../src/agents/clusters.js");
+let robinhoodMcp: typeof import("../../src/services/robinhoodMcp.js");
+let credentials: typeof import("../../src/db/credentials.js");
 
 // The mock reply is swapped per test so one server handles every scenario.
 let responder: (body: AnthropicRequestBody) => MockAssistantReply = () => ({ blocks: [] });
@@ -27,13 +27,13 @@ before(async () => {
   mockAnthropic = await startMockAnthropic((body) => responder(body));
   process.env.ANTHROPIC_BASE_URL = mockAnthropic.url;
 
-  const dbModule = await import("../db/index.js");
+  const dbModule = await import("../../src/db/index.js");
   dbModule.initDatabase();
-  credentials = await import("../db/credentials.js");
+  credentials = await import("../../src/db/credentials.js");
   credentials.setCredential("anthropic", "sk-test");
-  specialist = await import("./specialist.js");
-  clusters = await import("./clusters.js");
-  robinhoodMcp = await import("../services/robinhoodMcp.js");
+  specialist = await import("../../src/agents/specialist.js");
+  clusters = await import("../../src/agents/clusters.js");
+  robinhoodMcp = await import("../../src/services/robinhoodMcp.js");
   await robinhoodMcp.connectAndRegisterTools();
 });
 

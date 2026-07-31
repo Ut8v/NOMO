@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { computePerformance, extractTags } from "./performance.js";
+import { computePerformance, extractTags } from "../../src/services/performance.js";
 
 test("extractTags pulls hashtags, lowercased and deduped", () => {
   assert.deepEqual(extractTags("Buying the #Breakout on #momentum, classic #breakout"), ["breakout", "momentum"]);

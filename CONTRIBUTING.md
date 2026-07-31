@@ -8,7 +8,7 @@ Please read the short list of non-negotiables below before you start. NOMO conne
 
 1. **Never weaken the confirmation gate.** No stored fact, flag, debug mode, or environment variable may let an order reach the broker without an explicit user confirmation. The only path to a Robinhood execution tool is a `PendingOrder` in `confirmed` status. If your change touches order flow, it must preserve this, and your PR should say how.
 2. **No secrets in the repo, ever.** All keys and tokens live in the local SQLite database or your `.env`, both gitignored. A pre-commit hook and a CI job fail if a `.env` or a `.db` file is staged. Do not commit real account numbers, API keys, or personal data.
-3. **Test against the mock, not the real broker.** Order-flow tests run against the mock Robinhood MCP in `server/test/`. Do not write tests or scripts that place real orders.
+3. **Test against the mock, not the real broker.** Order-flow tests run against the mock Robinhood MCP in `server/tests/mocks/`. Do not write tests or scripts that place real orders.
 4. **Determinism stays in code.** The LLM interprets and decides; numbers (indicators, P/L, ratios) are computed in TypeScript. Do not ask the model to compute figures a tool can return.
 
 ## Getting set up

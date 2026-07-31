@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { OhlcvBar } from "@nomo/shared";
-import { ema, sma, vwap } from "./indicators.js";
+import { ema, sma, vwap } from "../../src/services/indicators.js";
 
 function bar(time: number, price: number, volume: number): OhlcvBar {
   return { time, open: price, high: price, low: price, close: price, volume };

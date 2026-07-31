@@ -134,7 +134,7 @@ npm run typecheck    # all workspaces
 npm test             # server unit and integration tests
 ```
 
-Tests run against a mock Robinhood MCP server (`server/test/mockRobinhoodMcp.ts`); they never touch the real broker. The gate lifecycle (propose, confirm, reject, expire) is covered by integration tests, and the mock records exactly what would have reached the broker so the tests can assert the confirmation gate forwards only stored parameters.
+Tests live in `server/tests/` (mirroring `server/src/`) and run against a mock Robinhood MCP server (`server/tests/mocks/mockRobinhoodMcp.ts`); they never touch the real broker. The gate lifecycle (propose, confirm, reject, expire) is covered by integration tests, and the mock records exactly what would have reached the broker so the tests can assert the confirmation gate forwards only stored parameters.
 
 A pre-commit hook and a CI job both fail if a `.env` file or a database file is ever committed.
 

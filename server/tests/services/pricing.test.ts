@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { estimateCostUsd, isPricedModel } from "./pricing.js";
+import { estimateCostUsd, isPricedModel } from "../../src/services/pricing.js";
 
 test("computes cost from input and output tokens at list prices", () => {
   // sonnet-5: $3/1M input, $15/1M output.

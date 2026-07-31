@@ -7,16 +7,16 @@ import path from "node:path";
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "nomo-admin-test-"));
 process.env.NOMO_DATA_DIR = tempDir;
 
-let admin: typeof import("./admin.js");
-let credentials: typeof import("./credentials.js");
-let auditLog: typeof import("./auditLog.js");
+let admin: typeof import("../../src/db/admin.js");
+let credentials: typeof import("../../src/db/credentials.js");
+let auditLog: typeof import("../../src/db/auditLog.js");
 
 before(async () => {
-  const dbModule = await import("./index.js");
+  const dbModule = await import("../../src/db/index.js");
   dbModule.initDatabase();
-  admin = await import("./admin.js");
-  credentials = await import("./credentials.js");
-  auditLog = await import("./auditLog.js");
+  admin = await import("../../src/db/admin.js");
+  credentials = await import("../../src/db/credentials.js");
+  auditLog = await import("../../src/db/auditLog.js");
   // Store a real-looking secret to prove it never comes back out.
   credentials.setCredential("anthropic", "sk-ant-super-secret-value");
   credentials.setCredential("polygon", "polygon-secret-key");

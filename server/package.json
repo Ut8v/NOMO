@@ -8,7 +8,7 @@
     "start": "tsx src/index.ts",
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test $(find src -name '*.test.ts')"
+    "test": "tsx --test $(find tests -name '*.test.ts')"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.112.5",
