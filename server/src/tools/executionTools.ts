@@ -12,13 +12,14 @@ export function registerExecutionTools(): void {
     name: "place_equity_order",
     tier: "execution",
     description:
-      "Propose an equity order. This does NOT place the order: it creates a proposal the user must explicitly confirm in the app within 5 minutes, and the broker is only contacted after that confirmation. Supports stop and stop-limit orders (for example, sell if the price falls to a stop). Always give a clear one or two sentence rationale.",
+      "Propose an equity order. This does NOT place the order: it creates a proposal the user must explicitly confirm in the app within 5 minutes, and the broker is only contacted after that confirmation. Size the order by share count (quantity, fractional allowed) OR by a dollar amount (dollar_amount, market orders only), never both. Supports stop and stop-limit orders. Always give a clear one or two sentence rationale.",
     inputSchema: {
       type: "object",
       properties: {
         ticker: { type: "string", description: "Stock symbol, e.g. AAPL" },
         side: { type: "string", enum: ["buy", "sell"] },
-        quantity: { type: "number", description: "Share count, fractional allowed" },
+        quantity: { type: "number", description: "Share count, fractional allowed. Provide this OR dollar_amount." },
+        dollar_amount: { type: "number", description: "USD notional to buy or sell, e.g. 100 for $100. Market orders only. Provide this OR quantity." },
         order_type: {
           type: "string",
           enum: ["market", "limit", "stop_market", "stop_limit"],
@@ -28,7 +29,7 @@ export function registerExecutionTools(): void {
         stop_price: { type: "number", description: "Trigger price; required for stop_market and stop_limit orders" },
         rationale: { type: "string", description: "Why this trade is proposed" },
       },
-      required: ["ticker", "side", "quantity", "order_type", "rationale"],
+      required: ["ticker", "side", "order_type", "rationale"],
     },
     execute: async (input): Promise<ToolExecutionResult> => {
       const { forModel, order } = proposeOrder(input);
