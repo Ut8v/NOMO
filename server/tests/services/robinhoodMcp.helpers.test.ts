@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { isRetryable, scrubAccountNumbers, stripAccountFromSchema } from "./robinhoodMcp.js";
+import { isRetryable, scrubAccountNumbers, stripAccountFromSchema } from "../../src/services/robinhoodMcp.js";
 
 test("scrub hides account_number fields and the exact stored value", () => {
   const raw = {

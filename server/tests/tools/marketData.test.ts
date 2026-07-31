@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { OhlcvBar } from "@nomo/shared";
-import { filterLatestSession } from "./marketData.js";
+import { filterLatestSession } from "../../src/tools/marketData.js";
 
 function bar(utcMs: number): OhlcvBar {
   return { time: Math.floor(utcMs / 1000), open: 1, high: 2, low: 1, close: 2, volume: 100 };

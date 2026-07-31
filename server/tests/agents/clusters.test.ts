@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parseFindings } from "@nomo/shared";
-import { AGENT_CLUSTERS, clusterAllows } from "./clusters.js";
+import { AGENT_CLUSTERS, clusterAllows } from "../../src/agents/clusters.js";
 
 const EXECUTION_TOOLS = [
   "place_equity_order",

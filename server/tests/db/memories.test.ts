@@ -7,13 +7,13 @@ import path from "node:path";
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "nomo-memories-test-"));
 process.env.NOMO_DATA_DIR = tempDir;
 
-let db: typeof import("./index.js");
-let memories: typeof import("./memories.js");
+let db: typeof import("../../src/db/index.js");
+let memories: typeof import("../../src/db/memories.js");
 
 before(async () => {
-  db = await import("./index.js");
+  db = await import("../../src/db/index.js");
   db.initDatabase();
-  memories = await import("./memories.js");
+  memories = await import("../../src/db/memories.js");
 });
 
 beforeEach(() => {

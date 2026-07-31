@@ -3,21 +3,21 @@ import { after, before, test } from "node:test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { startMockRobinhood } from "../../test/mockRobinhoodMcp.js";
-import type { MockRobinhood } from "../../test/mockRobinhoodMcp.js";
-import { startMockAnthropic } from "../../test/mockAnthropic.js";
-import type { MockAnthropic, AnthropicRequestBody, MockAssistantReply } from "../../test/mockAnthropic.js";
+import { startMockRobinhood } from "../mocks/mockRobinhoodMcp.js";
+import type { MockRobinhood } from "../mocks/mockRobinhoodMcp.js";
+import { startMockAnthropic } from "../mocks/mockAnthropic.js";
+import type { MockAnthropic, AnthropicRequestBody, MockAssistantReply } from "../mocks/mockAnthropic.js";
 
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "nomo-orchestrator-test-"));
 process.env.NOMO_DATA_DIR = tempDir;
 
 let mockRh: MockRobinhood;
 let mockAnthropic: MockAnthropic;
-let orchestrator: typeof import("./orchestrator.js");
-let clusters: typeof import("./clusters.js");
-let robinhoodMcp: typeof import("../services/robinhoodMcp.js");
-let credentials: typeof import("../db/credentials.js");
-let pendingOrders: typeof import("../db/pendingOrders.js");
+let orchestrator: typeof import("../../src/agents/orchestrator.js");
+let clusters: typeof import("../../src/agents/clusters.js");
+let robinhoodMcp: typeof import("../../src/services/robinhoodMcp.js");
+let credentials: typeof import("../../src/db/credentials.js");
+let pendingOrders: typeof import("../../src/db/pendingOrders.js");
 
 // Route each sub-agent request by its system prompt so a single mock server
 // serves the whole fan-out deterministically under concurrency.
@@ -63,15 +63,15 @@ before(async () => {
   mockAnthropic = await startMockAnthropic((body) => responder(body));
   process.env.ANTHROPIC_BASE_URL = mockAnthropic.url;
 
-  const dbModule = await import("../db/index.js");
+  const dbModule = await import("../../src/db/index.js");
   dbModule.initDatabase();
-  credentials = await import("../db/credentials.js");
+  credentials = await import("../../src/db/credentials.js");
   credentials.setCredential("anthropic", "sk-test");
-  orchestrator = await import("./orchestrator.js");
-  clusters = await import("./clusters.js");
-  robinhoodMcp = await import("../services/robinhoodMcp.js");
-  pendingOrders = await import("../db/pendingOrders.js");
-  const settings = await import("../db/settings.js");
+  orchestrator = await import("../../src/agents/orchestrator.js");
+  clusters = await import("../../src/agents/clusters.js");
+  robinhoodMcp = await import("../../src/services/robinhoodMcp.js");
+  pendingOrders = await import("../../src/db/pendingOrders.js");
+  const settings = await import("../../src/db/settings.js");
   settings.setRobinhoodAccountNumber("MOCK-ACCT-1");
   await robinhoodMcp.connectAndRegisterTools();
 });
@@ -122,7 +122,7 @@ test("a full orchestrated run creates exactly one pending order and moves no mon
 
   // The mandatory pre-trade simulation was written to the audit log, tagged to
   // the synthesis agent, like every other tool call.
-  const dbModule = await import("../db/index.js");
+  const dbModule = await import("../../src/db/index.js");
   const audited = dbModule
     .getDb()
     .prepare("SELECT COUNT(*) AS n FROM audit_log WHERE tool_name = 'review_equity_order' AND agent = 'synthesis'")
