@@ -21,6 +21,7 @@ import { executeConfirmedOrder } from "./robinhoodMcp.js";
 
 const TICKER_PATTERN = /^[A-Z][A-Z0-9.\-]{0,9}$/;
 const MAX_QUANTITY = 100_000;
+const MAX_DOLLAR_AMOUNT = 1_000_000;
 const MAX_RATIONALE_LENGTH = 2_000;
 
 const ORDER_TYPES: readonly OrderType[] = ["market", "limit", "stop_market", "stop_limit"];
@@ -28,7 +29,9 @@ const ORDER_TYPES: readonly OrderType[] = ["market", "limit", "stop_market", "st
 interface ParsedProposal {
   ticker: string;
   side: OrderSide;
-  quantity: string;
+  /** Exactly one of quantity or dollarAmount is set; the other is null. */
+  quantity: string | null;
+  dollarAmount: string | null;
   orderType: OrderType;
   limitPrice: string | null;
   stopPrice: string | null;
@@ -59,15 +62,40 @@ function parseProposal(input: unknown): ParsedProposal {
     throw new Error("side must be buy or sell.");
   }
 
-  const quantity = typeof raw.quantity === "number" ? raw.quantity : Number.NaN;
-  if (!Number.isFinite(quantity) || quantity <= 0 || quantity > MAX_QUANTITY) {
-    throw new Error(`quantity must be a number between 0 and ${MAX_QUANTITY}.`);
-  }
-
   if (!ORDER_TYPES.includes(raw.order_type as OrderType)) {
     throw new Error(`order_type must be one of: ${ORDER_TYPES.join(", ")}.`);
   }
   const orderType = raw.order_type as OrderType;
+
+  // An order is sized by share quantity OR by a dollar_amount notional, never
+  // both and never neither. dollar_amount is a market-order-only feature.
+  const hasQuantity = typeof raw.quantity === "number";
+  const hasDollar = typeof raw.dollar_amount === "number";
+  if (hasQuantity && hasDollar) {
+    throw new Error("Provide either quantity (shares) or dollar_amount (a USD amount), not both.");
+  }
+  if (!hasQuantity && !hasDollar) {
+    throw new Error("Provide quantity (shares) or dollar_amount (a USD amount to buy or sell).");
+  }
+
+  let quantity: string | null = null;
+  let dollarAmount: string | null = null;
+  if (hasDollar) {
+    if (orderType !== "market") {
+      throw new Error("dollar_amount is only valid for market orders.");
+    }
+    const dollars = raw.dollar_amount as number;
+    if (!Number.isFinite(dollars) || dollars <= 0 || dollars > MAX_DOLLAR_AMOUNT) {
+      throw new Error(`dollar_amount must be a positive USD amount up to ${MAX_DOLLAR_AMOUNT}.`);
+    }
+    dollarAmount = String(dollars);
+  } else {
+    const qty = raw.quantity as number;
+    if (!Number.isFinite(qty) || qty <= 0 || qty > MAX_QUANTITY) {
+      throw new Error(`quantity must be a number between 0 and ${MAX_QUANTITY}.`);
+    }
+    quantity = String(qty);
+  }
 
   // limit_price is required for limit and stop_limit; stop_price is required
   // for stop_market and stop_limit. A price is only ever stored when its order
@@ -96,7 +124,8 @@ function parseProposal(input: unknown): ParsedProposal {
   return {
     ticker,
     side: raw.side,
-    quantity: String(quantity),
+    quantity,
+    dollarAmount,
     orderType,
     limitPrice,
     stopPrice,
@@ -125,6 +154,7 @@ export function proposeOrder(input: unknown): { forModel: unknown; order: Pendin
     ticker: parsed.ticker,
     side: parsed.side,
     quantity: parsed.quantity,
+    dollarAmount: parsed.dollarAmount,
     orderType: parsed.orderType,
     limitPrice: parsed.limitPrice,
     stopPrice: parsed.stopPrice,
@@ -203,6 +233,7 @@ export function proposeResearchedOrder(
     ticker: parsed.ticker,
     side: parsed.side,
     quantity: parsed.quantity,
+    dollarAmount: parsed.dollarAmount,
     orderType: parsed.orderType,
     limitPrice: parsed.limitPrice,
     stopPrice: parsed.stopPrice,

@@ -227,6 +227,15 @@ const migrations: Migration[] = [
       ALTER TABLE pending_orders ADD COLUMN stop_price TEXT;
     `,
   },
+  {
+    id: 14,
+    name: "pending-order-dollar-amount",
+    // USD notional for a dollar-based market order. NULL when the order is
+    // priced by share quantity, which is every pre-existing row.
+    sql: `
+      ALTER TABLE pending_orders ADD COLUMN dollar_amount TEXT;
+    `,
+  },
 ];
 
 export function runMigrations(db: Database): void {

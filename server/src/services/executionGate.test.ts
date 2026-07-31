@@ -129,6 +129,35 @@ test("stop orders require a stop price, stop-limit also a limit price", () => {
   assert.throws(() => propose({ order_type: "bracket" }), /order_type/);
 });
 
+test("a dollar-amount market order forwards dollar_amount and no quantity", async () => {
+  const { order } = propose({ ticker: "AAPL", side: "buy", order_type: "market", dollar_amount: 100, quantity: undefined });
+  assert.equal(order.dollarAmount, "100");
+  assert.equal(order.quantity, null);
+  const result = await gate.confirmOrder(order.id);
+  assert.equal(result.order?.status, "executed");
+  // The exact match proves quantity is absent: a dollar order sends no shares.
+  assert.deepEqual(mock.placedOrders[mock.placedOrders.length - 1], {
+    account_number: "MOCK-ACCT-1",
+    symbol: "AAPL",
+    side: "buy",
+    type: "market",
+    dollar_amount: "100",
+    ref_id: order.id,
+  });
+});
+
+test("quantity and dollar_amount cannot both be given, and one is required", () => {
+  assert.throws(() => propose({ dollar_amount: 100 }), /not both/); // helper also passes quantity: 1
+  assert.throws(() => propose({ quantity: undefined }), /Provide quantity/);
+});
+
+test("dollar_amount is only allowed for market orders", () => {
+  assert.throws(
+    () => propose({ order_type: "limit", limit_price: 100, dollar_amount: 50, quantity: undefined }),
+    /only valid for market/,
+  );
+});
+
 test("a confirmed order is refused at the broker when no account is selected", async () => {
   const settings = await import("../db/settings.js");
   settings.setSetting("robinhood_account_number", ""); // clear the selection

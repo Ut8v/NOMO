@@ -330,6 +330,7 @@ function buildOrderArgs(order: {
   ticker: string;
   side: string | null;
   quantity: string | null;
+  dollarAmount?: string | null;
   orderType: string | null;
   limitPrice: string | null;
   stopPrice: string | null;
@@ -340,9 +341,14 @@ function buildOrderArgs(order: {
     account_number: order.accountNumber,
     symbol: order.ticker,
     side: order.side,
-    quantity: order.quantity,
     type: order.orderType,
   };
+  // Sized by a dollar notional (market only) or by share quantity, never both.
+  if (order.dollarAmount != null) {
+    args.dollar_amount = order.dollarAmount;
+  } else {
+    args.quantity = order.quantity;
+  }
   const type = order.orderType;
   if ((type === "limit" || type === "stop_limit") && order.limitPrice != null) {
     args.limit_price = order.limitPrice;
@@ -407,6 +413,7 @@ export async function executeConfirmedOrder(order: PendingOrderView): Promise<st
     ticker: order.ticker,
     side: order.side,
     quantity: order.quantity,
+    dollarAmount: order.dollarAmount,
     orderType: order.orderType,
     limitPrice: order.limitPrice,
     stopPrice: order.stopPrice,
