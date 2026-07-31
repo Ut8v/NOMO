@@ -23,7 +23,10 @@ export interface PendingOrderView {
   ticker: string;
   /** Null for cancel proposals. */
   side: OrderSide | null;
+  /** Share count; null for a notional (dollar_amount) order or a cancel. */
   quantity: string | null;
+  /** USD notional for a dollar-based market order; null when priced by shares. */
+  dollarAmount: string | null;
   orderType: OrderType | null;
   limitPrice: string | null;
   /** Stop trigger price for stop_market and stop_limit orders; null otherwise. */
