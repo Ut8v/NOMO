@@ -91,7 +91,7 @@ export default function OrderCard({ order, onResolved }: Props) {
         <span className="order-card-title">
           {order.action === "cancel"
             ? `Cancel order ${order.brokerRef ?? ""}`.trim()
-            : `${order.side?.toUpperCase() ?? ""} ${order.quantity ?? ""} ${order.ticker}`.trim()}
+            : `${order.side?.toUpperCase() ?? ""} ${order.dollarAmount ? `$${order.dollarAmount} of` : order.quantity ?? ""} ${order.ticker}`.trim()}
         </span>
         <span className={`order-status order-status-${displayStatus}`}>
           {STATUS_LABELS[displayStatus] ?? displayStatus}
