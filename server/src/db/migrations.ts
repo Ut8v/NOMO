@@ -236,6 +236,22 @@ const migrations: Migration[] = [
       ALTER TABLE pending_orders ADD COLUMN dollar_amount TEXT;
     `,
   },
+  {
+    id: 15,
+    name: "edgar-cache",
+    // SEC EDGAR responses cached by endpoint + identifier. Filings change
+    // slowly, so serving from here keeps NOMO well under SEC's rate cap. The
+    // per-endpoint TTL is enforced in code against fetched_at.
+    sql: `
+      CREATE TABLE edgar_cache (
+        endpoint TEXT NOT NULL,
+        identifier TEXT NOT NULL,
+        body TEXT NOT NULL,
+        fetched_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        PRIMARY KEY (endpoint, identifier)
+      );
+    `,
+  },
 ];
 
 export function runMigrations(db: Database): void {

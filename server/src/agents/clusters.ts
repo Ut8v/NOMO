@@ -13,6 +13,7 @@ export type ClusterName =
   | "screener"
   | "technicals"
   | "fundamentals"
+  | "filings"
   | "portfolio_risk"
   | "options"
   | "synthesis";
@@ -52,6 +53,13 @@ export const AGENT_CLUSTERS: Record<ClusterName, string[]> = {
     "get_equity_fundamentals",
     "get_financials",
     "get_earnings_results",
+    "get_earnings_calendar",
+    // Cross-check Robinhood's financials against source SEC XBRL.
+    "get_company_facts",
+  ],
+  filings: [
+    "get_recent_filings",
+    "get_insider_trades",
     "get_earnings_calendar",
   ],
   portfolio_risk: [

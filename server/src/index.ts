@@ -5,6 +5,7 @@ import { registerMarketDataTools } from "./tools/marketData.js";
 import { registerExecutionTools } from "./tools/executionTools.js";
 import { registerLearningTools } from "./tools/learningTools.js";
 import { registerResearchTool } from "./tools/researchTool.js";
+import { registerEdgarTools } from "./tools/edgarTools.js";
 import { resumeLinkIfPresent } from "./services/robinhoodMcp.js";
 import { createApp } from "./app.js";
 
@@ -14,6 +15,7 @@ registerMarketDataTools();
 registerExecutionTools();
 registerLearningTools();
 registerResearchTool();
+registerEdgarTools();
 resumeLinkIfPresent();
 
 const app = createApp();
