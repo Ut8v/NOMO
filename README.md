@@ -31,7 +31,7 @@ flowchart TD
         ORCH["Orchestrator"] --> SPEC["Specialists<br/>parallel"] --> SYN["Synthesis"] --> SKEP["Risk-skeptic"]
     end
 
-    REG --> DATA[("Robinhood MCP · Polygon<br/>market & account data")]
+    REG --> DATA[("Robinhood MCP · Polygon · SEC EDGAR<br/>market, account & filings data")]
     SPEC --> DATA
     SYN -->|"simulate order"| DATA
 
@@ -44,7 +44,7 @@ flowchart TD
     CARD ==>|"Confirm"| BROKER["Robinhood broker<br/>place / cancel"]
     CARD -.->|"Reject / expire"| X(["discarded"])
 
-    SQLITE[("SQLite<br/>audit · orders · memories · usage")]
+    SQLITE[("SQLite<br/>audit · orders · memories · usage · edgar cache")]
     LOOP -.- SQLITE
     GATE -.- SQLITE
 ```
