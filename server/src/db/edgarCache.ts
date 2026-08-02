@@ -22,6 +22,14 @@ export function readEdgarCache(endpoint: string, identifier: string, ttlMs: numb
   return row.body;
 }
 
+/** Returns the cached body regardless of age, for a fallback when SEC is down. */
+export function readEdgarCacheStale(endpoint: string, identifier: string): string | null {
+  const row = getDb()
+    .prepare("SELECT body FROM edgar_cache WHERE endpoint = ? AND identifier = ?")
+    .get(endpoint, identifier) as { body: string } | undefined;
+  return row ? row.body : null;
+}
+
 export function writeEdgarCache(endpoint: string, identifier: string, body: string): void {
   getDb()
     .prepare(
