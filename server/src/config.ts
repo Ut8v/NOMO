@@ -35,11 +35,11 @@ export const config = {
   robinhoodMcpUrl: process.env.ROBINHOOD_MCP_URL || "https://agent.robinhood.com/mcp/trading",
   // SEC EDGAR: two hosts (data.sec.gov for JSON APIs, www.sec.gov for the
   // ticker map and filing archives). SEC's fair-access policy asks for a
-  // descriptive User-Agent identifying the app and a contact; override
-  // SEC_USER_AGENT with your own contact for heavier use.
+  // descriptive User-Agent identifying the app and a contact; set your own
+  // contact via SEC_USER_AGENT, especially for heavier use.
   secDataBaseUrl: process.env.SEC_DATA_BASE_URL || "https://data.sec.gov",
   secWwwBaseUrl: process.env.SEC_WWW_BASE_URL || "https://www.sec.gov",
-  secUserAgent: process.env.SEC_USER_AGENT || "NOMO trading app (https://github.com/Ut8v/NOMO)",
+  secUserAgent: process.env.SEC_USER_AGENT || "NOMO trading app",
   dataDir,
   dbPath: path.join(dataDir, "app.db"),
 };
