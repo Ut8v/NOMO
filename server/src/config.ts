@@ -33,6 +33,13 @@ export const config = {
   anthropicBaseUrl: process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com",
   polygonBaseUrl: process.env.POLYGON_BASE_URL || "https://api.polygon.io",
   robinhoodMcpUrl: process.env.ROBINHOOD_MCP_URL || "https://agent.robinhood.com/mcp/trading",
+  // SEC EDGAR: two hosts (data.sec.gov for JSON APIs, www.sec.gov for the
+  // ticker map and filing archives). SEC's fair-access policy asks for a
+  // descriptive User-Agent identifying the app and a contact; override
+  // SEC_USER_AGENT with your own contact for heavier use.
+  secDataBaseUrl: process.env.SEC_DATA_BASE_URL || "https://data.sec.gov",
+  secWwwBaseUrl: process.env.SEC_WWW_BASE_URL || "https://www.sec.gov",
+  secUserAgent: process.env.SEC_USER_AGENT || "NOMO trading app (https://github.com/Ut8v/NOMO)",
   dataDir,
   dbPath: path.join(dataDir, "app.db"),
 };
