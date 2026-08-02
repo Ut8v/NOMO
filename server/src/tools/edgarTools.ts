@@ -1,5 +1,6 @@
 import { getCompanyFacts } from "../services/edgar/companyFacts.js";
 import { getRecentFilings } from "../services/edgar/filings.js";
+import { getInsiderTrades } from "../services/edgar/insiders.js";
 import { registerTool } from "./registry.js";
 import type { ToolExecutionResult } from "./registry.js";
 
@@ -48,6 +49,25 @@ export function registerEdgarTools(): void {
       const forms = Array.isArray(raw.forms) ? raw.forms.filter((f): f is string => typeof f === "string") : undefined;
       const days = typeof raw.days === "number" ? raw.days : undefined;
       return { forModel: await getRecentFilings(ticker(input), { forms, days }) };
+    },
+  });
+
+  registerTool({
+    name: "get_insider_trades",
+    tier: "market_data",
+    description:
+      "List recent insider transactions (SEC Form 4) for a company: the insider's name and role, whether they bought or sold, the share count, and the price. Use to gauge insider sentiment. Optionally limit the lookback window in days.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        ticker: { type: "string", description: "Stock symbol, e.g. AAPL" },
+        days: { type: "number", description: "Lookback window in days (default 90)" },
+      },
+      required: ["ticker"],
+    },
+    execute: async (input): Promise<ToolExecutionResult> => {
+      const days = typeof (input as { days?: unknown }).days === "number" ? (input as { days: number }).days : undefined;
+      return { forModel: await getInsiderTrades(ticker(input), { days }) };
     },
   });
 }
