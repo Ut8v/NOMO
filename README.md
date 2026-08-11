@@ -55,6 +55,7 @@ The core principle: the LLM interprets and decides, deterministic code computes 
 
 - Claude never generates price data. Charts and indicators (SMA, EMA, VWAP) are fetched from Polygon and computed in TypeScript; Claude only chooses what to request.
 - Company financials, recent filings, and insider trades come from SEC EDGAR (free, keyless, cached locally in SQLite). Growth rates, margins, and leverage ratios are computed deterministically in TypeScript from the source XBRL; the model never derives them from a filing.
+- Simple rules (SMA crossover, price vs SMA, RSI reversion, buy and hold) can be backtested against a ticker's daily history with `backtest_strategy`. The model picks the rule and parameters; the return, win rate, and drawdown are simulated deterministically in TypeScript, long-only and with no lookahead.
 - Claude never has a direct path to order execution. Every tool is registered in a tiered registry:
 
 | Tier | Examples | Behavior |

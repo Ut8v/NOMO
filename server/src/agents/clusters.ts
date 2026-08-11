@@ -48,6 +48,7 @@ export const AGENT_CLUSTERS: Record<ClusterName, string[]> = {
     "get_quote",
     "get_ohlcv",
     "render_chart",
+    "backtest_strategy",
   ],
   fundamentals: [
     "get_equity_fundamentals",
