@@ -7,6 +7,7 @@ import { registerLearningTools } from "./tools/learningTools.js";
 import { registerResearchTool } from "./tools/researchTool.js";
 import { registerEdgarTools } from "./tools/edgarTools.js";
 import { registerBacktestTool } from "./tools/backtestTool.js";
+import { registerNewsTool } from "./tools/newsTool.js";
 import { resumeLinkIfPresent } from "./services/robinhoodMcp.js";
 import { createApp } from "./app.js";
 
@@ -18,6 +19,7 @@ registerLearningTools();
 registerResearchTool();
 registerEdgarTools();
 registerBacktestTool();
+registerNewsTool();
 resumeLinkIfPresent();
 
 const app = createApp();

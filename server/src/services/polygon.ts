@@ -156,3 +156,74 @@ export async function getPreviousClose(ticker: string): Promise<PreviousClose> {
   quoteCache.set(ticker, quote, QUOTE_TTL_MS);
   return quote;
 }
+
+export interface NewsItem {
+  title: string;
+  publisher: string;
+  author: string | null;
+  publishedUtc: string;
+  url: string;
+  tickers: string[];
+  description: string | null;
+  /** Source-provided sentiment for this ticker, when the article carries one. */
+  sentiment: string | null;
+  sentimentReasoning: string | null;
+}
+
+interface RawArticle {
+  title?: unknown;
+  publisher?: { name?: unknown };
+  author?: unknown;
+  published_utc?: unknown;
+  article_url?: unknown;
+  tickers?: unknown;
+  description?: unknown;
+  insights?: Array<{ ticker?: unknown; sentiment?: unknown; sentiment_reasoning?: unknown }>;
+}
+
+function str(v: unknown): string {
+  return typeof v === "string" ? v : "";
+}
+
+/**
+ * Maps Polygon's raw news response to clean items. Sentiment comes straight
+ * from the source insight for the requested ticker (never inferred here); the
+ * specialist interprets the headlines.
+ */
+export function mapNewsResults(raw: unknown, ticker: string): NewsItem[] {
+  const results = (raw as { results?: RawArticle[] } | undefined)?.results;
+  if (!Array.isArray(results)) return [];
+  const wanted = ticker.toUpperCase();
+  return results.map((a) => {
+    const insight = a.insights?.find((i) => str(i.ticker).toUpperCase() === wanted);
+    return {
+      title: str(a.title),
+      publisher: str(a.publisher?.name),
+      author: str(a.author) || null,
+      publishedUtc: str(a.published_utc),
+      url: str(a.article_url),
+      tickers: Array.isArray(a.tickers) ? a.tickers.filter((t): t is string => typeof t === "string") : [],
+      description: str(a.description) || null,
+      sentiment: insight ? str(insight.sentiment) || null : null,
+      sentimentReasoning: insight ? str(insight.sentiment_reasoning) || null : null,
+    };
+  });
+}
+
+const newsCache = new TtlCache<NewsItem[]>();
+const NEWS_TTL_MS = 10 * 60 * 1000;
+
+/** Recent news articles for a ticker from Polygon (free tier, existing key). */
+export async function getNews(ticker: string, limit = 10): Promise<NewsItem[]> {
+  const capped = Math.min(Math.max(1, Math.floor(limit)), 25);
+  const cacheKey = `${ticker}:${capped}`;
+  const cached = newsCache.get(cacheKey);
+  if (cached) return cached;
+
+  const raw = await polygonGet(
+    `/v2/reference/news?ticker=${encodeURIComponent(ticker)}&order=desc&sort=published_utc&limit=${capped}`,
+  );
+  const items = mapNewsResults(raw, ticker);
+  newsCache.set(cacheKey, items, NEWS_TTL_MS);
+  return items;
+}

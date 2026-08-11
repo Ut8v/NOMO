@@ -34,6 +34,7 @@ export const SPECIALISTS: SpecialistDef[] = [
   { name: "technicals", cluster: "technicals", defaultEnabled: true, focus: "price structure, momentum, key levels, and the recent trend" },
   { name: "fundamentals", cluster: "fundamentals", defaultEnabled: true, focus: "valuation, financial trends, and the earnings setup" },
   { name: "filings", cluster: "filings", defaultEnabled: true, focus: "recent SEC filings, material 8-K events, insider transactions, and the earnings calendar" },
+  { name: "news", cluster: "news", defaultEnabled: true, focus: "recent news headlines, the current narrative, and near-term catalysts" },
   { name: "portfolio_risk", cluster: "portfolio_risk", defaultEnabled: true, focus: "current exposure, concentration, realized and unrealized P/L, and tax lots" },
   { name: "options", cluster: "options", defaultEnabled: false, focus: "options positioning, implied volatility, and chain structure" },
 ];
