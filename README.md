@@ -56,6 +56,7 @@ The core principle: the LLM interprets and decides, deterministic code computes 
 - Claude never generates price data. Charts and indicators (SMA, EMA, VWAP) are fetched from Polygon and computed in TypeScript; Claude only chooses what to request.
 - Company financials, recent filings, and insider trades come from SEC EDGAR (free, keyless, cached locally in SQLite). Growth rates, margins, and leverage ratios are computed deterministically in TypeScript from the source XBRL; the model never derives them from a filing.
 - Simple rules (SMA crossover, price vs SMA, RSI reversion, buy and hold) can be backtested against a ticker's daily history with `backtest_strategy`. The model picks the rule and parameters; the return, win rate, and drawdown are simulated deterministically in TypeScript, long-only and with no lookahead.
+- Recent news headlines come from Polygon (free tier, the same key) via `get_news`, with the source's own sentiment when available. The model reads and interprets the headlines; it never invents them.
 - Claude never has a direct path to order execution. Every tool is registered in a tiered registry:
 
 | Tier | Examples | Behavior |
@@ -80,7 +81,7 @@ The core principle: the LLM interprets and decides, deterministic code computes 
 
 For a trade idea or a should-I-buy-or-sell question, Claude can run a `deep_research` pass instead of gathering everything itself. An orchestrator plans which specialists the request needs and fans them out in parallel, each a narrow sub-agent that can only see its own cluster of read tools and must return typed findings, never prose:
 
-- **Screener** for idea generation, **Technicals** for price structure, **Fundamentals & earnings** for valuation and the earnings setup, **Filings & events** for recent SEC filings and insider activity, **Portfolio & risk** for exposure and tax lots, and an **Options** specialist that is off by default.
+- **Screener** for idea generation, **Technicals** for price structure, **Fundamentals & earnings** for valuation and the earnings setup, **Filings & events** for recent SEC filings and insider activity, **News** for recent headlines and catalysts, **Portfolio & risk** for exposure and tax lots, and an **Options** specialist that is off by default.
 - A **Synthesis** step merges the findings into one thesis and at most one concrete proposal. A **Risk-skeptic** then argues the bear case against it.
 - Before any proposal becomes a pending order, it is simulated with Robinhood's order review tool, and the broker's pre-trade warnings are captured. If the simulation fails, no proposal is created.
 
