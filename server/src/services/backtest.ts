@@ -1,4 +1,5 @@
 import type { OhlcvBar } from "@nomo/shared";
+import { rsi, sma } from "./indicators.js";
 
 /**
  * Deterministic long-only backtester. The model picks a rule and its
@@ -6,6 +7,68 @@ import type { OhlcvBar } from "@nomo/shared";
  * computed here in TypeScript, never by the model. Signals act at a bar's close
  * and the position is held into the next bar, so there is no lookahead.
  */
+
+export type StrategyName = "buy_and_hold" | "sma_crossover" | "price_vs_sma" | "rsi_reversion";
+
+export interface StrategyParams {
+  fast?: number;
+  slow?: number;
+  period?: number;
+  oversold?: number;
+  overbought?: number;
+}
+
+/** Builds a 0/1 (flat/long) position series from a named rule and its parameters. */
+export function buildPositions(
+  bars: OhlcvBar[],
+  strategy: StrategyName,
+  params: StrategyParams,
+): { positions: number[]; label: string } {
+  const closes = bars.map((b) => b.close);
+  const n = bars.length;
+
+  if (strategy === "buy_and_hold") {
+    return { positions: new Array(n).fill(1), label: "Buy and hold" };
+  }
+
+  if (strategy === "sma_crossover") {
+    const fast = Math.max(1, Math.floor(params.fast ?? 20));
+    const slow = Math.max(fast + 1, Math.floor(params.slow ?? 50));
+    const f = sma(closes, fast);
+    const s = sma(closes, slow);
+    const positions = closes.map((_, i) => (f[i] !== null && s[i] !== null && f[i]! > s[i]! ? 1 : 0));
+    return { positions, label: `SMA crossover (${fast} over ${slow}): long while fast SMA is above slow SMA` };
+  }
+
+  if (strategy === "price_vs_sma") {
+    const period = Math.max(1, Math.floor(params.period ?? 50));
+    const m = sma(closes, period);
+    const positions = closes.map((c, i) => (m[i] !== null && c > m[i]! ? 1 : 0));
+    return { positions, label: `Price vs SMA (${period}): long while price is above the ${period}-period SMA` };
+  }
+
+  // rsi_reversion: buy oversold, exit overbought, hold in between (stateful).
+  const period = Math.max(2, Math.floor(params.period ?? 14));
+  const oversold = params.oversold ?? 30;
+  const overbought = params.overbought ?? 70;
+  const r = rsi(closes, period);
+  const positions: number[] = new Array(n).fill(0);
+  let pos = 0;
+  for (let i = 0; i < n; i++) {
+    const v = r[i];
+    if (v === null || v === undefined) {
+      positions[i] = 0;
+      continue;
+    }
+    if (pos === 0 && v < oversold) pos = 1;
+    else if (pos === 1 && v > overbought) pos = 0;
+    positions[i] = pos;
+  }
+  return {
+    positions,
+    label: `RSI reversion (period ${period}): buy below ${oversold}, exit above ${overbought}`,
+  };
+}
 
 export interface BacktestMetrics {
   bars: number;
