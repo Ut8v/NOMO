@@ -1,4 +1,5 @@
 import type { OhlcvBar } from "@nomo/shared";
+import { getAggregates } from "./polygon.js";
 import { rsi, sma } from "./indicators.js";
 
 /**
@@ -143,5 +144,53 @@ export function simulate(bars: OhlcvBar[], positions: number[]): BacktestMetrics
     avgTradeReturnPct: avgTrade !== null ? round(avgTrade * 100) : null,
     maxDrawdownPct: round(maxDrawdown * 100),
     finalPosition: positions[n - 1] === 1 ? "long" : "flat",
+  };
+}
+
+const STRATEGIES: readonly StrategyName[] = ["buy_and_hold", "sma_crossover", "price_vs_sma", "rsi_reversion"];
+const TICKER_PATTERN = /^[A-Z][A-Z0-9.\-]{0,9}$/;
+const DEFAULT_LOOKBACK_DAYS = 365;
+const MAX_LOOKBACK_DAYS = 1825; // ~5 years of daily bars
+
+export interface BacktestResult extends BacktestMetrics {
+  ticker: string;
+  strategy: StrategyName;
+  description: string;
+  fromDate: string;
+  toDate: string;
+}
+
+function isoDate(msEpoch: number): string {
+  return new Date(msEpoch).toISOString().slice(0, 10);
+}
+
+/**
+ * Runs a named strategy over a ticker's daily history and returns the metrics.
+ * The bars come from Polygon; the model chooses the rule and parameters but
+ * never the numbers.
+ */
+export async function runBacktest(
+  ticker: string,
+  opts: { strategy: StrategyName; params?: StrategyParams; lookbackDays?: number },
+): Promise<BacktestResult> {
+  const sym = typeof ticker === "string" ? ticker.trim().toUpperCase() : "";
+  if (!TICKER_PATTERN.test(sym)) throw new Error("ticker must be a stock symbol like AAPL.");
+  if (!STRATEGIES.includes(opts.strategy)) {
+    throw new Error(`strategy must be one of: ${STRATEGIES.join(", ")}.`);
+  }
+  const days = Math.min(Math.max(30, Math.floor(opts.lookbackDays ?? DEFAULT_LOOKBACK_DAYS)), MAX_LOOKBACK_DAYS);
+  const now = Date.now();
+  const bars = await getAggregates(sym, 1, "day", isoDate(now - days * 24 * 60 * 60 * 1000), isoDate(now));
+  if (bars.length < 2) throw new Error(`Not enough price history for ${sym} to backtest.`);
+
+  const { positions, label } = buildPositions(bars, opts.strategy, opts.params ?? {});
+  const metrics = simulate(bars, positions);
+  return {
+    ticker: sym,
+    strategy: opts.strategy,
+    description: label,
+    fromDate: isoDate(bars[0]!.time * 1000),
+    toDate: isoDate(bars[bars.length - 1]!.time * 1000),
+    ...metrics,
   };
 }
