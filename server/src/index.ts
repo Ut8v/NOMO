@@ -6,6 +6,7 @@ import { registerExecutionTools } from "./tools/executionTools.js";
 import { registerLearningTools } from "./tools/learningTools.js";
 import { registerResearchTool } from "./tools/researchTool.js";
 import { registerEdgarTools } from "./tools/edgarTools.js";
+import { registerBacktestTool } from "./tools/backtestTool.js";
 import { resumeLinkIfPresent } from "./services/robinhoodMcp.js";
 import { createApp } from "./app.js";
 
@@ -16,6 +17,7 @@ registerExecutionTools();
 registerLearningTools();
 registerResearchTool();
 registerEdgarTools();
+registerBacktestTool();
 resumeLinkIfPresent();
 
 const app = createApp();
