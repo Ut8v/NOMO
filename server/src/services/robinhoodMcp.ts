@@ -385,6 +385,17 @@ export async function listAccounts(): Promise<unknown> {
 }
 
 /**
+ * Reads open equity positions for the portfolio view. Like listAccounts this
+ * is a UI-only read, not a model tool; the account is injected server-side
+ * and scrubbed from the response.
+ */
+export async function fetchEquityPositions(): Promise<unknown> {
+  const account = getRobinhoodAccountNumber();
+  const args = account ? { [ACCOUNT_FIELD]: account } : {};
+  return scrubAccountNumbers(await callRobinhoodTool("get_equity_positions", args), account);
+}
+
+/**
  * THE ONLY PATH to a Robinhood execution tool. It accepts nothing but a
  * stored pending order in confirmed status; parameters are taken from that
  * row and never from model output. Do not add another caller besides the
@@ -444,14 +455,17 @@ export async function executeConfirmedOrder(order: PendingOrderView): Promise<st
  * disabled tier cannot skip the mandatory simulation. Throws when review is
  * unavailable, which the orchestrator surfaces as "no proposal created".
  */
-export async function simulateEquityOrder(proposal: {
-  ticker: string;
-  side: string;
-  quantity: string;
-  orderType: string;
-  limitPrice?: string | null;
-  stopPrice?: string | null;
-}): Promise<BrokerReview> {
+export async function simulateEquityOrder(
+  proposal: {
+    ticker: string;
+    side: string;
+    quantity: string;
+    orderType: string;
+    limitPrice?: string | null;
+    stopPrice?: string | null;
+  },
+  auditAgent = "synthesis",
+): Promise<BrokerReview> {
   const args = buildOrderArgs({
     ticker: proposal.ticker,
     side: proposal.side,
@@ -462,21 +476,21 @@ export async function simulateEquityOrder(proposal: {
     accountNumber: requireAccountNumber(),
   });
 
-  // This previews a live order at the broker on synthesis's behalf, so it is
-  // audited like every other tool call, tagged to the synthesis agent.
+  // This previews a live order at the broker on the caller's behalf, so it is
+  // audited like every other tool call, tagged to the calling agent.
   if (!availableToolNames.has("review_equity_order")) {
-    recordToolCall({ toolName: "review_equity_order", tier: "portfolio_read", params: args, outcome: "unavailable: not linked", agent: "synthesis" });
+    recordToolCall({ toolName: "review_equity_order", tier: "portfolio_read", params: args, outcome: "unavailable: not linked", agent: auditAgent });
     throw new Error(
       "Order simulation is unavailable: Robinhood is not linked or does not expose review_equity_order.",
     );
   }
   try {
     const review = parseBrokerReview(await callRobinhoodTool("review_equity_order", args));
-    recordToolCall({ toolName: "review_equity_order", tier: "portfolio_read", params: args, outcome: "ok", agent: "synthesis" });
+    recordToolCall({ toolName: "review_equity_order", tier: "portfolio_read", params: args, outcome: "ok", agent: auditAgent });
     return review;
   } catch (err) {
     const message = err instanceof Error ? err.message : "review failed";
-    recordToolCall({ toolName: "review_equity_order", tier: "portfolio_read", params: args, outcome: `error: ${message}`, agent: "synthesis" });
+    recordToolCall({ toolName: "review_equity_order", tier: "portfolio_read", params: args, outcome: `error: ${message}`, agent: auditAgent });
     throw err;
   }
 }
