@@ -4,6 +4,7 @@ import { fetchSetupStatus } from "./api";
 import SetupScreen from "./components/SetupScreen";
 import SettingsScreen from "./components/SettingsScreen";
 import DatabaseView from "./components/DatabaseView";
+import PortfolioView from "./components/PortfolioView";
 import Chat from "./components/Chat";
 
 export default function App() {
@@ -11,6 +12,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [showSetup, setShowSetup] = useState(false);
   const [showDb, setShowDb] = useState(false);
+  const [showPortfolio, setShowPortfolio] = useState(false);
 
   const loadStatus = useCallback(async () => {
     try {
@@ -60,9 +62,14 @@ export default function App() {
       )}
       {status.configured && showSetup && <SettingsScreen onBack={() => setShowSetup(false)} />}
       {status.configured && showDb && <DatabaseView onBack={() => setShowDb(false)} />}
+      {status.configured && showPortfolio && <PortfolioView onBack={() => setShowPortfolio(false)} />}
       {status.configured && (
-        <div className={showSetup || showDb ? "hidden" : undefined}>
-          <Chat onOpenSettings={() => setShowSetup(true)} onOpenDatabase={() => setShowDb(true)} />
+        <div className={showSetup || showDb || showPortfolio ? "hidden" : undefined}>
+          <Chat
+            onOpenSettings={() => setShowSetup(true)}
+            onOpenDatabase={() => setShowDb(true)}
+            onOpenPortfolio={() => setShowPortfolio(true)}
+          />
         </div>
       )}
     </>

@@ -20,6 +20,7 @@ import OrderCard from "./OrderCard";
 interface Props {
   onOpenSettings: () => void;
   onOpenDatabase: () => void;
+  onOpenPortfolio: () => void;
 }
 
 interface ChatFault {
@@ -107,7 +108,7 @@ function dropEmptyReply(setMessages: React.Dispatch<React.SetStateAction<UiMessa
   });
 }
 
-export default function Chat({ onOpenSettings, onOpenDatabase }: Props) {
+export default function Chat({ onOpenSettings, onOpenDatabase, onOpenPortfolio }: Props) {
   const [messages, setMessages] = useState<UiMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -417,6 +418,9 @@ export default function Chat({ onOpenSettings, onOpenDatabase }: Props) {
                 ≈ {formatCost(totalCostUsd)}
               </span>
             )}
+            <button className="link-button" onClick={onOpenPortfolio}>
+              Portfolio
+            </button>
             <button className="link-button" onClick={onOpenDatabase}>
               Database
             </button>
