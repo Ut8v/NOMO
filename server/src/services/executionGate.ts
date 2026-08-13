@@ -38,7 +38,7 @@ interface ParsedProposal {
   rationale: string;
 }
 
-function normalizeTicker(raw: unknown): string {
+export function normalizeTicker(raw: unknown): string {
   const ticker = typeof raw === "string" ? raw.trim().toUpperCase() : "";
   if (!TICKER_PATTERN.test(ticker)) {
     throw new Error("ticker must be a stock symbol like AAPL.");
@@ -247,6 +247,40 @@ export function proposeResearchedOrder(
     order,
     "The order was NOT placed. The user must confirm it in the app within 5 minutes. Never state that it executed unless a later system record says so.",
   );
+}
+
+/**
+ * Creates a pending order for a user-initiated close of a whole position from
+ * the portfolio view. Same validation and the same gate as every other
+ * proposal: this only writes a pending_orders row, the user still confirms or
+ * rejects it, and the broker warnings from the mandatory simulation are
+ * stored for the confirmation card.
+ */
+export function proposeClosePosition(
+  proposal: { ticker: string; quantity: number; rationale: string },
+  brokerWarnings: string | null,
+): PendingOrderView {
+  expireStaleOrders();
+  const parsed = parseProposal({
+    ticker: proposal.ticker,
+    side: "sell",
+    quantity: proposal.quantity,
+    order_type: "market",
+    rationale: proposal.rationale,
+  });
+  return createPendingOrder({
+    action: "place",
+    ticker: parsed.ticker,
+    side: parsed.side,
+    quantity: parsed.quantity,
+    dollarAmount: parsed.dollarAmount,
+    orderType: parsed.orderType,
+    limitPrice: parsed.limitPrice,
+    stopPrice: parsed.stopPrice,
+    brokerRef: null,
+    rationale: parsed.rationale,
+    brokerWarnings,
+  });
 }
 
 export type GateActionCode = "not_found" | "conflict";
