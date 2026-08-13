@@ -67,6 +67,7 @@ The core principle: the LLM interprets and decides, deterministic code computes 
 
 - An execution tool call only creates a pending order (a placement or a cancellation) with a 5 minute expiry. The UI renders a confirmation card; Confirm forwards the exact stored parameters to Robinhood, Reject discards them. The only code path that can reach a Robinhood execution tool requires a stored order in confirmed status. There is no bypass flag.
 - If the linked Robinhood MCP exposes an order review tool, placements are previewed with it before being sent, and a review failure aborts the placement.
+- A Portfolio view in the header lists your open positions with a one-click Close per position. Close only creates a gated market sell proposal for the whole position, sized from the broker's own reported quantity and simulated first; it stops at the same confirmation card as every other order.
 - For a trade idea or a should-I-buy question, Claude calls `deep_research`, which runs a fan-out of read-only specialist agents into a synthesis and a risk-skeptic step, and can propose one order that still stops at the same gate. See [Multi-agent research](#multi-agent-research) below. Simple requests like a quote or chart skip it.
 - Disabling a tool tier in settings removes those tools from the schema sent to Claude, not just from what can run.
 - Every tool call is written to a local audit log with tier, parameters, and outcome.
