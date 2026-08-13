@@ -26,6 +26,14 @@ function decimalString(value: unknown): string | null {
 
 /** Maps the broker's positions payload to typed views; unusable entries are dropped. */
 export function parsePositions(raw: unknown): PositionView[] {
+  // Tool results usually arrive as JSON text rather than structured content.
+  if (typeof raw === "string") {
+    try {
+      raw = JSON.parse(raw);
+    } catch {
+      return [];
+    }
+  }
   const positions = (raw as { positions?: unknown } | null)?.positions;
   if (!Array.isArray(positions)) return [];
   return positions.flatMap((entry) => {
