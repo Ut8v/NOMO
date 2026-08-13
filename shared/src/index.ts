@@ -38,6 +38,8 @@ export type {
   BrokerReview,
 } from "./orders.js";
 
+export type { PositionView } from "./portfolio.js";
+
 export type {
   ConversationSummary,
   ConversationDetail,
