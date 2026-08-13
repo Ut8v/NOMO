@@ -1,7 +1,26 @@
 import { Router } from "express";
 import { confirmOrder, getOrder, rejectOrder } from "../services/executionGate.js";
+import { ClosePositionError, proposeClosePosition } from "../services/portfolio.js";
 
 export const ordersRouter = Router();
+
+// One-click close from the portfolio view. This only creates a pending
+// order; the user still confirms or rejects it like any other proposal.
+ordersRouter.post("/close-position", async (req, res) => {
+  const ticker = (req.body as { ticker?: unknown } | undefined)?.ticker;
+  try {
+    const order = await proposeClosePosition(ticker);
+    res.json({ order });
+  } catch (err) {
+    if (err instanceof ClosePositionError) {
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
+    const message = err instanceof Error ? err.message : "The close proposal failed.";
+    console.error("Close-position proposal failed:", err);
+    res.status(502).json({ error: message });
+  }
+});
 
 ordersRouter.get("/:id", (req, res) => {
   const order = getOrder(req.params.id);

@@ -9,6 +9,7 @@ import {
   unlink,
 } from "../services/robinhoodMcp.js";
 import { getRobinhoodAccountNumber, setRobinhoodAccountNumber } from "../db/settings.js";
+import { listPositions } from "../services/portfolio.js";
 
 // Robinhood account numbers are short identifiers; keep validation permissive
 // but bounded so a stored value cannot be absurd.
@@ -93,6 +94,17 @@ robinhoodRouter.get("/accounts", async (_req, res) => {
   } catch (err) {
     console.error("Failed to list Robinhood accounts:", err);
     res.status(502).json({ error: "Could not load accounts. Make sure Robinhood is linked." });
+  }
+});
+
+// Open equity positions for the portfolio view. A UI-only read like
+// /accounts; the response is already account-number scrubbed.
+robinhoodRouter.get("/positions", async (_req, res) => {
+  try {
+    res.json({ positions: await listPositions() });
+  } catch (err) {
+    console.error("Failed to list equity positions:", err);
+    res.status(502).json({ error: "Could not load positions. Make sure Robinhood is linked." });
   }
 });
 
