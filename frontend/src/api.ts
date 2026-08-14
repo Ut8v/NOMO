@@ -3,6 +3,7 @@ import type {
   ConversationSummary,
   MemoryView,
   PendingOrderView,
+  PositionView,
   SetupStatus,
   SaveKeysRequest,
   SaveKeysResponse,
@@ -90,6 +91,26 @@ export async function updateTierSetting(tier: string, enabled: boolean): Promise
     body: JSON.stringify({ tier, enabled }),
   });
   if (!res.ok) throw new Error(`Failed to update tool settings (${res.status})`);
+}
+
+export async function fetchPositions(): Promise<PositionView[]> {
+  const res = await fetch("/api/robinhood/positions");
+  const body = (await res.json().catch(() => null)) as { positions?: PositionView[]; error?: string } | null;
+  if (!res.ok) throw new Error(body?.error ?? `Failed to load positions (${res.status})`);
+  return body?.positions ?? [];
+}
+
+export async function proposeClosePosition(ticker: string): Promise<{ order: PendingOrderView }> {
+  const res = await fetch("/api/orders/close-position", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ticker }),
+  });
+  const body = (await res.json().catch(() => null)) as { order?: PendingOrderView; error?: string } | null;
+  if (!res.ok || !body?.order) {
+    throw new Error(body?.error ?? `Failed to propose the close (${res.status})`);
+  }
+  return { order: body.order };
 }
 
 export async function confirmOrder(id: string): Promise<{ order: PendingOrderView }> {
