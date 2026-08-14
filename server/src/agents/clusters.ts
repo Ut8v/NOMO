@@ -14,6 +14,7 @@ export type ClusterName =
   | "technicals"
   | "fundamentals"
   | "filings"
+  | "news"
   | "portfolio_risk"
   | "options"
   | "synthesis";
@@ -61,6 +62,11 @@ export const AGENT_CLUSTERS: Record<ClusterName, string[]> = {
   filings: [
     "get_recent_filings",
     "get_insider_trades",
+    "get_earnings_calendar",
+  ],
+  news: [
+    "get_news",
+    // The earnings calendar is a near-term catalyst the news read cares about.
     "get_earnings_calendar",
   ],
   portfolio_risk: [
