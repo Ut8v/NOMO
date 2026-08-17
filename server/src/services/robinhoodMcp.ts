@@ -395,6 +395,13 @@ export async function fetchEquityPositions(): Promise<unknown> {
   return scrubAccountNumbers(await callRobinhoodTool("get_equity_positions", args), account);
 }
 
+/** Reads equity orders for the portfolio view's open-orders panel. Same UI-only contract as fetchEquityPositions. */
+export async function fetchEquityOrders(): Promise<unknown> {
+  const account = getRobinhoodAccountNumber();
+  const args = account ? { [ACCOUNT_FIELD]: account } : {};
+  return scrubAccountNumbers(await callRobinhoodTool("get_equity_orders", args), account);
+}
+
 /**
  * THE ONLY PATH to a Robinhood execution tool. It accepts nothing but a
  * stored pending order in confirmed status; parameters are taken from that
