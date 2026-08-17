@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import type { PendingOrderView, PositionView } from "@nomo/shared";
-import { fetchPositions, proposeClosePosition } from "../api";
+import type { OpenOrderView, PendingOrderView, PositionView } from "@nomo/shared";
+import { fetchOpenOrders, fetchPositions, proposeCancelOrder, proposeClosePosition } from "../api";
 import OrderCard from "./OrderCard";
 
 interface Props {
@@ -13,6 +13,7 @@ function money(value: string | null): string {
 
 export default function PortfolioView({ onBack }: Props) {
   const [positions, setPositions] = useState<PositionView[]>([]);
+  const [openOrders, setOpenOrders] = useState<OpenOrderView[]>([]);
   const [orders, setOrders] = useState<PendingOrderView[]>([]);
   const [loading, setLoading] = useState(true);
   const [proposing, setProposing] = useState<string | null>(null);
@@ -21,9 +22,12 @@ export default function PortfolioView({ onBack }: Props) {
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    fetchPositions()
-      .then(setPositions)
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load positions."))
+    Promise.all([fetchPositions(), fetchOpenOrders()])
+      .then(([livePositions, liveOrders]) => {
+        setPositions(livePositions);
+        setOpenOrders(liveOrders);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load the portfolio."))
       .finally(() => setLoading(false));
   }, []);
 
@@ -44,14 +48,34 @@ export default function PortfolioView({ onBack }: Props) {
     }
   };
 
+  const cancel = async (orderId: string) => {
+    setProposing(orderId);
+    setError(null);
+    try {
+      const { order } = await proposeCancelOrder(orderId);
+      setOrders((current) => [order, ...current]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "The cancel proposal failed.");
+    } finally {
+      setProposing(null);
+    }
+  };
+
   const updateOrder = (order: PendingOrderView) => {
     setOrders((current) => current.map((o) => (o.id === order.id ? order : o)));
     if (order.status === "executed") load();
   };
 
+  const proposalIsLive = (o: PendingOrderView) =>
+    o.status === "awaiting_confirmation" || o.status === "confirmed";
+
   // One live proposal per ticker: the button stays off until the card resolves.
   const hasOpenProposal = (symbol: string) =>
-    orders.some((o) => o.ticker === symbol && (o.status === "awaiting_confirmation" || o.status === "confirmed"));
+    orders.some((o) => o.action === "place" && o.ticker === symbol && proposalIsLive(o));
+
+  // Same rule per resting order, keyed by the broker order reference.
+  const hasCancelProposal = (orderId: string) =>
+    orders.some((o) => o.action === "cancel" && o.brokerRef === orderId && proposalIsLive(o));
 
   return (
     <div className="db-view">
@@ -71,6 +95,7 @@ export default function PortfolioView({ onBack }: Props) {
 
       <div className="portfolio-body">
         {error && <p className="error-text">{error}</p>}
+        <h3 className="portfolio-heading">Positions</h3>
         <div className="db-table-scroll portfolio-table">
           <table className="db-grid">
             <thead>
@@ -118,6 +143,56 @@ export default function PortfolioView({ onBack }: Props) {
           Close proposes a market sell of the whole position. Nothing reaches Robinhood until you confirm the order
           below, and the proposal expires after 5 minutes.
         </p>
+
+        <h3 className="portfolio-heading">Open orders</h3>
+        <div className="db-table-scroll portfolio-table">
+          <table className="db-grid">
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th>Side</th>
+                <th>Quantity</th>
+                <th>Type</th>
+                <th>Limit</th>
+                <th>State</th>
+                <th aria-label="Actions" />
+              </tr>
+            </thead>
+            <tbody>
+              {openOrders.map((open) => (
+                <tr key={open.orderId}>
+                  <td>{open.symbol}</td>
+                  <td>{open.side}</td>
+                  <td>{open.quantity ?? ""}</td>
+                  <td>{(open.orderType ?? "").replace("_", " ")}</td>
+                  <td>{money(open.limitPrice)}</td>
+                  <td>{open.state}</td>
+                  <td>
+                    <button
+                      className="portfolio-close"
+                      onClick={() => void cancel(open.orderId)}
+                      disabled={proposing !== null || hasCancelProposal(open.orderId)}
+                    >
+                      {proposing === open.orderId ? "Proposing..." : "Cancel"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {openOrders.length === 0 && (
+                <tr>
+                  <td className="muted" colSpan={7}>
+                    {loading ? "Loading…" : "No resting orders."}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <p className="muted portfolio-note">
+          Cancel proposes cancelling the resting order at the broker. It also stops at the confirmation card and sends
+          nothing until you confirm.
+        </p>
+
         {orders.map((order) => (
           <OrderCard key={order.id} order={order} onResolved={updateOrder} />
         ))}
