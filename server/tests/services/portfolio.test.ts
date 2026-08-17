@@ -123,7 +123,7 @@ test("an invalid ticker is a 400 and writes nothing", async () => {
   const ordersBefore = countPendingOrders();
   await assert.rejects(
     () => portfolio.proposeClosePosition("not a ticker"),
-    (err: unknown) => err instanceof portfolio.ClosePositionError && err.status === 400,
+    (err: unknown) => err instanceof portfolio.PortfolioActionError && err.status === 400,
   );
   assert.equal(countPendingOrders(), ordersBefore);
 });
@@ -132,7 +132,7 @@ test("a ticker without an open long position is a 404 and writes nothing", async
   const ordersBefore = countPendingOrders();
   await assert.rejects(
     () => portfolio.proposeClosePosition("TSLA"),
-    (err: unknown) => err instanceof portfolio.ClosePositionError && err.status === 404,
+    (err: unknown) => err instanceof portfolio.PortfolioActionError && err.status === 404,
   );
   assert.equal(countPendingOrders(), ordersBefore);
 });

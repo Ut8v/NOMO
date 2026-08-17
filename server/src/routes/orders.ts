@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { confirmOrder, getOrder, rejectOrder } from "../services/executionGate.js";
-import { ClosePositionError, proposeClosePosition } from "../services/portfolio.js";
+import { PortfolioActionError, proposeClosePosition } from "../services/portfolio.js";
 
 export const ordersRouter = Router();
 
@@ -12,7 +12,7 @@ ordersRouter.post("/close-position", async (req, res) => {
     const order = await proposeClosePosition(ticker);
     res.json({ order });
   } catch (err) {
-    if (err instanceof ClosePositionError) {
+    if (err instanceof PortfolioActionError) {
       res.status(err.status).json({ error: err.message });
       return;
     }
