@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { confirmOrder, getOrder, rejectOrder } from "../services/executionGate.js";
-import { ClosePositionError, proposeClosePosition } from "../services/portfolio.js";
+import { PortfolioActionError, proposeCancelOpenOrder, proposeClosePosition } from "../services/portfolio.js";
 
 export const ordersRouter = Router();
 
@@ -12,12 +12,30 @@ ordersRouter.post("/close-position", async (req, res) => {
     const order = await proposeClosePosition(ticker);
     res.json({ order });
   } catch (err) {
-    if (err instanceof ClosePositionError) {
+    if (err instanceof PortfolioActionError) {
       res.status(err.status).json({ error: err.message });
       return;
     }
     const message = err instanceof Error ? err.message : "The close proposal failed.";
     console.error("Close-position proposal failed:", err);
+    res.status(502).json({ error: message });
+  }
+});
+
+// One-click cancel of a resting order from the portfolio view. Like every
+// execution path this only creates a pending order for the user to confirm.
+ordersRouter.post("/propose-cancel", async (req, res) => {
+  const orderId = (req.body as { orderId?: unknown } | undefined)?.orderId;
+  try {
+    const order = await proposeCancelOpenOrder(orderId);
+    res.json({ order });
+  } catch (err) {
+    if (err instanceof PortfolioActionError) {
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
+    const message = err instanceof Error ? err.message : "The cancel proposal failed.";
+    console.error("Cancel-order proposal failed:", err);
     res.status(502).json({ error: message });
   }
 });

@@ -49,7 +49,12 @@ const READ_TOOLS: { name: string; description: string; inputSchema: Record<strin
     name: "get_equity_orders",
     description: "Order history",
     inputSchema: { type: "object", properties: {} },
-    result: { orders: [{ symbol: "AAPL", side: "buy", quantity: "12", state: "filled", executed_at: "2026-07-01T14:31:02Z" }] },
+    result: {
+      orders: [
+        { id: "RH-OPEN-1", symbol: "AAPL", side: "buy", quantity: "2", type: "limit", limit_price: "195.00", state: "queued", created_at: "2026-08-01T14:00:00Z" },
+        { id: "RH-DONE-1", symbol: "AAPL", side: "buy", quantity: "12", type: "market", state: "filled", executed_at: "2026-07-01T14:31:02Z" },
+      ],
+    },
   },
   {
     name: "get_equity_quotes",

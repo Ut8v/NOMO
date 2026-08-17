@@ -1085,3 +1085,10 @@ button.secondary {
   font-size: 0.8rem;
   margin: 0.2rem 0 0.9rem;
 }
+
+.portfolio-heading {
+  margin: 0.4rem 0 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #9aa3b2;
+}

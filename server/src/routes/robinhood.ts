@@ -9,7 +9,7 @@ import {
   unlink,
 } from "../services/robinhoodMcp.js";
 import { getRobinhoodAccountNumber, setRobinhoodAccountNumber } from "../db/settings.js";
-import { listPositions } from "../services/portfolio.js";
+import { listOpenOrders, listPositions } from "../services/portfolio.js";
 
 // Robinhood account numbers are short identifiers; keep validation permissive
 // but bounded so a stored value cannot be absurd.
@@ -105,6 +105,16 @@ robinhoodRouter.get("/positions", async (_req, res) => {
   } catch (err) {
     console.error("Failed to list equity positions:", err);
     res.status(502).json({ error: "Could not load positions. Make sure Robinhood is linked." });
+  }
+});
+
+// Resting equity orders for the portfolio view's open-orders panel.
+robinhoodRouter.get("/orders", async (_req, res) => {
+  try {
+    res.json({ orders: await listOpenOrders() });
+  } catch (err) {
+    console.error("Failed to list equity orders:", err);
+    res.status(502).json({ error: "Could not load open orders. Make sure Robinhood is linked." });
   }
 });
 

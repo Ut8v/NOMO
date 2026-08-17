@@ -2,6 +2,7 @@ import type {
   ConversationDetail,
   ConversationSummary,
   MemoryView,
+  OpenOrderView,
   PendingOrderView,
   PositionView,
   SetupStatus,
@@ -101,14 +102,33 @@ export async function fetchPositions(): Promise<PositionView[]> {
 }
 
 export async function proposeClosePosition(ticker: string): Promise<{ order: PendingOrderView }> {
-  const res = await fetch("/api/orders/close-position", {
+  return proposalRequest("/api/orders/close-position", { ticker }, "close");
+}
+
+export async function fetchOpenOrders(): Promise<OpenOrderView[]> {
+  const res = await fetch("/api/robinhood/orders");
+  const body = (await res.json().catch(() => null)) as { orders?: OpenOrderView[]; error?: string } | null;
+  if (!res.ok) throw new Error(body?.error ?? `Failed to load open orders (${res.status})`);
+  return body?.orders ?? [];
+}
+
+export async function proposeCancelOrder(orderId: string): Promise<{ order: PendingOrderView }> {
+  return proposalRequest("/api/orders/propose-cancel", { orderId }, "cancel");
+}
+
+async function proposalRequest(
+  url: string,
+  payload: Record<string, unknown>,
+  label: string,
+): Promise<{ order: PendingOrderView }> {
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ticker }),
+    body: JSON.stringify(payload),
   });
   const body = (await res.json().catch(() => null)) as { order?: PendingOrderView; error?: string } | null;
   if (!res.ok || !body?.order) {
-    throw new Error(body?.error ?? `Failed to propose the close (${res.status})`);
+    throw new Error(body?.error ?? `Failed to propose the ${label} (${res.status})`);
   }
   return { order: body.order };
 }

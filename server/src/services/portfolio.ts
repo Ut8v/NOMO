@@ -1,7 +1,7 @@
-import type { PendingOrderView, PositionView } from "@nomo/shared";
+import type { OpenOrderView, PendingOrderView, PositionView } from "@nomo/shared";
 import { recordToolCall } from "../db/auditLog.js";
-import { normalizeTicker, proposeClosePosition as gateProposeClose } from "./executionGate.js";
-import { fetchEquityPositions, simulateEquityOrder } from "./robinhoodMcp.js";
+import { normalizeTicker, proposeCancel, proposeClosePosition as gateProposeClose } from "./executionGate.js";
+import { fetchEquityOrders, fetchEquityPositions, simulateEquityOrder } from "./robinhoodMcp.js";
 
 /**
  * Portfolio reads and the close-position proposal for the portfolio view.
@@ -12,7 +12,7 @@ import { fetchEquityPositions, simulateEquityOrder } from "./robinhoodMcp.js";
  */
 
 /** Thrown for request problems the route should report as 4xx, not 502. */
-export class ClosePositionError extends Error {
+export class PortfolioActionError extends Error {
   constructor(message: string, readonly status: number) {
     super(message);
   }
@@ -56,6 +56,79 @@ export async function listPositions(): Promise<PositionView[]> {
   return parsePositions(await fetchEquityPositions());
 }
 
+// Orders in these states are done; everything else still rests at the broker
+// and can be cancelled. Unknown states are treated as open so a cancellable
+// order is never hidden by an unrecognized label.
+const TERMINAL_ORDER_STATES = new Set(["filled", "cancelled", "canceled", "rejected", "failed", "expired", "voided"]);
+
+/** Maps the broker's orders payload to typed views of the still-open orders. */
+export function parseOpenOrders(raw: unknown): OpenOrderView[] {
+  if (typeof raw === "string") {
+    try {
+      raw = JSON.parse(raw);
+    } catch {
+      return [];
+    }
+  }
+  const orders = (raw as { orders?: unknown } | null)?.orders;
+  if (!Array.isArray(orders)) return [];
+  return orders.flatMap((entry) => {
+    const record = (entry ?? {}) as Record<string, unknown>;
+    const orderId = decimalString(record.id) ?? decimalString(record.order_id);
+    const symbol = typeof record.symbol === "string" ? record.symbol.trim().toUpperCase() : "";
+    const state = typeof record.state === "string" ? record.state.toLowerCase() : "";
+    if (!orderId || !symbol || TERMINAL_ORDER_STATES.has(state)) return [];
+    const view: OpenOrderView = {
+      orderId,
+      symbol,
+      side: typeof record.side === "string" ? record.side : "",
+      quantity: decimalString(record.quantity),
+      orderType: typeof record.type === "string" ? record.type : null,
+      limitPrice: decimalString(record.limit_price),
+      state: state || "unknown",
+      createdAt: typeof record.created_at === "string" ? record.created_at : null,
+    };
+    return [view];
+  });
+}
+
+export async function listOpenOrders(): Promise<OpenOrderView[]> {
+  return parseOpenOrders(await fetchEquityOrders());
+}
+
+/**
+ * Builds a gated cancel proposal for a resting order. The order must exist in
+ * the broker's live order list; the ticker and reference stored on the
+ * proposal come from that listing, never from the client.
+ */
+export async function proposeCancelOpenOrder(rawOrderId: unknown): Promise<PendingOrderView> {
+  const orderId = typeof rawOrderId === "string" ? rawOrderId.trim() : "";
+  if (!orderId) {
+    throw new PortfolioActionError("orderId is required.", 400);
+  }
+
+  const openOrders = await listOpenOrders();
+  const target = openOrders.find((o) => o.orderId === orderId);
+  if (!target) {
+    throw new PortfolioActionError(`No open order ${orderId} was found.`, 404);
+  }
+
+  const describeSize = target.quantity ? `${target.quantity} share ` : "";
+  const { order } = proposeCancel({
+    order_id: target.orderId,
+    ticker: target.symbol,
+    rationale: `User-initiated cancellation of the resting ${target.side} ${describeSize}${target.symbol} order from the portfolio view.`,
+  });
+  recordToolCall({
+    toolName: "cancel_order",
+    tier: "execution",
+    params: { orderId: target.orderId, ticker: target.symbol },
+    outcome: "proposed, awaiting confirmation",
+    agent: "portfolio",
+  });
+  return order;
+}
+
 /**
  * Builds a gated sell proposal that closes the full position in a ticker.
  * Fails without writing anything when the position does not exist or the
@@ -66,17 +139,17 @@ export async function proposeClosePosition(rawTicker: unknown): Promise<PendingO
   try {
     ticker = normalizeTicker(rawTicker);
   } catch (err) {
-    throw new ClosePositionError(err instanceof Error ? err.message : "Invalid ticker.", 400);
+    throw new PortfolioActionError(err instanceof Error ? err.message : "Invalid ticker.", 400);
   }
 
   const positions = await listPositions();
   const position = positions.find((p) => p.symbol === ticker && p.side === "long");
   if (!position) {
-    throw new ClosePositionError(`No open long position in ${ticker}.`, 404);
+    throw new PortfolioActionError(`No open long position in ${ticker}.`, 404);
   }
   const quantity = Number(position.quantity);
   if (!Number.isFinite(quantity) || quantity <= 0) {
-    throw new ClosePositionError(`The ${ticker} position quantity is not sellable.`, 409);
+    throw new PortfolioActionError(`The ${ticker} position quantity is not sellable.`, 409);
   }
 
   const warnings = await simulateEquityOrder(
