@@ -148,3 +148,75 @@ test("a failed simulation creates no pending order", async () => {
   assert.equal(mock.placedOrders.length, placedBefore);
   mock.reviewShouldFail = false;
 });
+
+test("listOpenOrders keeps only the resting orders", async () => {
+  const orders = await portfolio.listOpenOrders();
+  assert.deepEqual(orders, [
+    {
+      orderId: "RH-OPEN-1",
+      symbol: "AAPL",
+      side: "buy",
+      quantity: "2",
+      orderType: "limit",
+      limitPrice: "195.00",
+      state: "queued",
+      createdAt: "2026-08-01T14:00:00Z",
+    },
+  ]);
+});
+
+test("parseOpenOrders drops terminal states and entries without ids, keeps unknown states", () => {
+  const parsed = portfolio.parseOpenOrders({
+    orders: [
+      { id: "A1", symbol: "aapl", side: "sell", quantity: "1", state: "Cancelled" },
+      { symbol: "NVDA", side: "buy", quantity: "1", state: "queued" },
+      { order_id: "B2", symbol: "msft", side: "buy", state: "who_knows" },
+    ],
+  });
+  assert.equal(parsed.length, 1);
+  assert.equal(parsed[0]?.orderId, "B2");
+  assert.equal(parsed[0]?.symbol, "MSFT");
+  assert.equal(parsed[0]?.state, "who_knows");
+});
+
+test("propose-cancel creates an awaiting cancel and touches no broker order", async () => {
+  const cancelledBefore = mock.cancelledOrders.length;
+
+  const order = await portfolio.proposeCancelOpenOrder("RH-OPEN-1");
+
+  assert.equal(order.status, "awaiting_confirmation");
+  assert.equal(order.action, "cancel");
+  assert.equal(order.ticker, "AAPL");
+  assert.equal(order.brokerRef, "RH-OPEN-1");
+  assert.match(order.rationale, /portfolio view/);
+  assert.equal(mock.cancelledOrders.length, cancelledBefore);
+
+  const audit = dbModule
+    .getDb()
+    .prepare("SELECT agent, outcome FROM audit_log WHERE tool_name = 'cancel_order' ORDER BY id DESC LIMIT 1")
+    .get() as { agent: string; outcome: string };
+  assert.equal(audit.agent, "portfolio");
+  assert.match(audit.outcome, /awaiting confirmation/);
+});
+
+test("confirming a proposed cancel sends the stored broker reference", async () => {
+  const order = await portfolio.proposeCancelOpenOrder("RH-OPEN-1");
+  const result = await gate.confirmOrder(order.id);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.order?.status, "executed");
+  assert.deepEqual(mock.cancelledOrders[mock.cancelledOrders.length - 1], { order_id: "RH-OPEN-1" });
+});
+
+test("an unknown or missing order id is rejected and writes nothing", async () => {
+  const ordersBefore = countPendingOrders();
+  await assert.rejects(
+    () => portfolio.proposeCancelOpenOrder("RH-DONE-1"),
+    (err: unknown) => err instanceof portfolio.PortfolioActionError && err.status === 404,
+  );
+  await assert.rejects(
+    () => portfolio.proposeCancelOpenOrder("   "),
+    (err: unknown) => err instanceof portfolio.PortfolioActionError && err.status === 400,
+  );
+  assert.equal(countPendingOrders(), ordersBefore);
+});
